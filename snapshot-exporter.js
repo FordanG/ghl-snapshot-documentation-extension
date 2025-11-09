@@ -391,6 +391,20 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Calendars');
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Calendars: ${assets.length} items`);
+
+                // Also create a Calendar Configuration sheet
+                console.log('[Snapshot Exporter] Creating Calendar Configuration sheet...');
+                sendProgressUpdate(52, `Extracting calendar configuration...`);
+                const calendarConfig = await extractCalendarConfiguration(locationId);
+                if (calendarConfig) {
+                    const configSheetData = convertAssetTypeToArray([calendarConfig]);
+                    const configWorksheet = XLSX.utils.aoa_to_sheet(configSheetData);
+                    const configColWidths = configSheetData[0].map(() => ({ wch: 20 }));
+                    configWorksheet['!cols'] = configColWidths;
+                    XLSX.utils.book_append_sheet(workbook, configWorksheet, 'Calendar Configuration');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Calendar Configuration sheet`);
+                }
             }
             // Special handling for Pipelines - enrich with full data
             else if (assetType.key === 'pipelines' && locationId) {
@@ -407,6 +421,20 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Pipelines');
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Pipelines: ${assets.length} items`);
+
+                // Also create a detailed Pipeline Stages sheet
+                console.log('[Snapshot Exporter] Creating Pipeline Stages sheet...');
+                sendProgressUpdate(57, `Extracting pipeline stages...`);
+                const pipelineStages = await extractPipelineStages(assets, locationId);
+                if (pipelineStages && pipelineStages.length > 0) {
+                    const stagesSheetData = convertAssetTypeToArray(pipelineStages);
+                    const stagesWorksheet = XLSX.utils.aoa_to_sheet(stagesSheetData);
+                    const stagesColWidths = stagesSheetData[0].map(() => ({ wch: 20 }));
+                    stagesWorksheet['!cols'] = stagesColWidths;
+                    XLSX.utils.book_append_sheet(workbook, stagesWorksheet, 'Pipeline Stages');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Pipeline Stages sheet: ${pipelineStages.length} stages`);
+                }
             }
             // Special handling for Email Templates - enrich with full data
             else if (assetType.key === 'email_templates' && locationId) {
@@ -2265,6 +2293,39 @@ async function enrichCalendars(calendars, locationId) {
 }
 
 /**
+ * Extract calendar configuration for the location
+ */
+async function extractCalendarConfiguration(locationId) {
+    if (!locationId) {
+        console.log('[Calendar Config] No locationId provided');
+        return null;
+    }
+
+    console.log('[Calendar Config] Fetching calendar configuration');
+
+    try {
+        const endpoint = `/calendars/configuration/location/${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const configData = response.data;
+
+        const config = {
+            locationId: configData.locationId || locationId,
+            isRentalsEnabled: configData.subAccountConfig?.isRentalsEnabled || false,
+            modules: (configData.subAccountConfig?.modules || []).join(', '),
+            migratedServicesStatus: configData.migratedServicesStatus || '',
+            configId: configData._id || ''
+        };
+
+        console.log('[Calendar Config] Configuration extracted successfully');
+        return config;
+    } catch (error) {
+        console.error('[Calendar Config] Error fetching configuration:', error);
+        return null;
+    }
+}
+
+/**
  * Enrich pipelines with stages and details
  */
 async function enrichPipelines(pipelines, locationId) {
@@ -2296,6 +2357,7 @@ async function enrichPipelines(pipelines, locationId) {
                 ...pipeline,
                 stageCount: stages.length,
                 stages: stageNames,
+                stagesDetailed: stages, // Include full stage details
                 firstStage: stages.length > 0 ? stages[0].name : '',
                 lastStage: stages.length > 0 ? stages[stages.length - 1].name : '',
                 showInFunnels: fullPipelineData.showInFunnels || false,
@@ -2312,6 +2374,59 @@ async function enrichPipelines(pipelines, locationId) {
     }
 
     return enrichedPipelines;
+}
+
+/**
+ * Extract all pipeline stages into a flat list for detailed stage worksheet
+ */
+async function extractPipelineStages(pipelines, locationId) {
+    if (!pipelines || pipelines.length === 0 || !locationId) {
+        console.log('[Pipeline Stages] No pipelines to extract stages from');
+        return [];
+    }
+
+    console.log(`[Pipeline Stages] Extracting stages from ${pipelines.length} pipelines`);
+    const allStages = [];
+
+    for (let i = 0; i < pipelines.length; i++) {
+        const pipeline = pipelines[i];
+        const pipelineId = pipeline._id || pipeline.id;
+        const pipelineName = pipeline.name || 'Unnamed Pipeline';
+
+        console.log(`[Pipeline Stages] [${i + 1}/${pipelines.length}] Extracting from: ${pipelineName}`);
+
+        try {
+            const endpoint = `/opportunities/pipelines/${locationId}/${pipelineId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullPipelineData = response.data;
+
+            const stages = fullPipelineData.stages || [];
+
+            // Add each stage with pipeline context
+            stages.forEach((stage) => {
+                allStages.push({
+                    pipelineId: pipelineId,
+                    pipelineName: pipelineName,
+                    stageId: stage.id,
+                    stageName: stage.name,
+                    stagePosition: stage.position,
+                    originId: stage.originId || '',
+                    showInFunnel: stage.showInFunnel !== false,
+                    showInPieChart: stage.showInPieChart !== false,
+                    dateAdded: fullPipelineData.dateAdded || '',
+                    dateUpdated: fullPipelineData.dateUpdated || ''
+                });
+            });
+
+            console.log(`[Pipeline Stages] [${i + 1}] Extracted: ${stages.length} stages`);
+        } catch (error) {
+            console.error(`[Pipeline Stages] [${i + 1}] Error:`, error);
+        }
+    }
+
+    console.log(`[Pipeline Stages] Total stages extracted: ${allStages.length}`);
+    return allStages;
 }
 
 /**
