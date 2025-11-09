@@ -440,6 +440,70 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Surveys: ${assets.length} items`);
             }
+            // Special handling for Campaigns - enrich with statistics
+            else if (assetType.key === 'campaigns' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CAMPAIGN ENRICHMENT TRIGGERED');
+                sendProgressUpdate(68, `Enriching ${assets.length} campaigns...`);
+
+                const enrichedCampaigns = await enrichCampaigns(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedCampaigns);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Campaigns');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Campaigns: ${assets.length} items`);
+            }
+            // Special handling for Links - enrich with click statistics
+            else if (assetType.key === 'links' && locationId) {
+                console.log('[Snapshot Exporter] ✅ LINK ENRICHMENT TRIGGERED');
+                sendProgressUpdate(70, `Enriching ${assets.length} links...`);
+
+                const enrichedLinks = await enrichLinks(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedLinks);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Links');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Links: ${assets.length} items`);
+            }
+            // Special handling for Text Templates - enrich with content details
+            else if (assetType.key === 'text_templates' && locationId) {
+                console.log('[Snapshot Exporter] ✅ TEXT TEMPLATE ENRICHMENT TRIGGERED');
+                sendProgressUpdate(72, `Enriching ${assets.length} text templates...`);
+
+                const enrichedTemplates = await enrichTextTemplates(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedTemplates);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Text_Templates');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Text Templates: ${assets.length} items`);
+            }
+            // Special handling for Membership Offers - enrich with pricing and products
+            else if (assetType.key === 'membership_offers' && locationId) {
+                console.log('[Snapshot Exporter] ✅ MEMBERSHIP OFFER ENRICHMENT TRIGGERED');
+                sendProgressUpdate(75, `Enriching ${assets.length} membership offers...`);
+
+                const enrichedOffers = await enrichMembershipOffers(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedOffers);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Membership_Offers');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Membership Offers: ${assets.length} items`);
+            }
             else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
@@ -2183,6 +2247,349 @@ async function enrichSurveys(surveys) {
     }
 
     return enrichedSurveys;
+}
+
+/**
+ * Enrich campaigns with statistics and details
+ */
+async function enrichCampaigns(campaigns, locationId) {
+    if (!campaigns || campaigns.length === 0 || !locationId) {
+        console.log('[Campaign Enrichment] No campaigns to enrich or missing locationId');
+        return campaigns;
+    }
+
+    console.log(`[Campaign Enrichment] Enriching ${campaigns.length} campaigns`);
+    const enrichedCampaigns = [];
+
+    try {
+        // Fetch all campaigns from the API to get full details
+        const endpoint = `/emails/campaigns/?locationId=${locationId}&offset=0&limit=1000&search=`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiCampaigns = response.data?.campaigns || response.data || [];
+
+        console.log(`[Campaign Enrichment] Fetched ${apiCampaigns.length} campaigns from API`);
+
+        // Create a map for quick lookup
+        const campaignMap = new Map();
+        apiCampaigns.forEach(camp => {
+            const campId = camp._id || camp.id;
+            if (campId) {
+                campaignMap.set(campId, camp);
+            }
+        });
+
+        // Enrich each campaign from snapshot with API data
+        for (let i = 0; i < campaigns.length; i++) {
+            const campaign = campaigns[i];
+            const campaignId = campaign._id || campaign.id;
+            const campaignName = campaign.name || 'Unnamed Campaign';
+
+            console.log(`[Campaign Enrichment] [${i + 1}/${campaigns.length}] Processing: ${campaignName}`);
+
+            const apiData = campaignMap.get(campaignId);
+
+            if (apiData) {
+                const totalSent = apiData.totalSent || apiData.sent || 0;
+                const opens = apiData.opens || apiData.opened || 0;
+                const clicks = apiData.clicks || apiData.clicked || 0;
+                const bounces = apiData.bounces || apiData.bounced || 0;
+
+                const enrichedCampaign = {
+                    ...campaign,
+                    // Statistics
+                    totalSent: totalSent,
+                    opens: opens,
+                    clicks: clicks,
+                    bounces: bounces,
+                    openRate: totalSent > 0 ? ((opens / totalSent) * 100).toFixed(2) + '%' : '0%',
+                    clickRate: totalSent > 0 ? ((clicks / totalSent) * 100).toFixed(2) + '%' : '0%',
+                    bounceRate: totalSent > 0 ? ((bounces / totalSent) * 100).toFixed(2) + '%' : '0%',
+                    // Status and metadata
+                    status: apiData.status || campaign.status || 'unknown',
+                    campaignType: apiData.type || apiData.campaignType || 'email',
+                    lastSentAt: apiData.lastSentAt || apiData.sentAt || '',
+                    createdBy: apiData.createdBy || campaign.createdBy || '',
+                    // Associated resources
+                    workflowIds: apiData.workflowIds || campaign.workflowIds || [],
+                    templateId: apiData.templateId || campaign.templateId || ''
+                };
+
+                enrichedCampaigns.push(enrichedCampaign);
+                console.log(`[Campaign Enrichment] [${i + 1}] Enriched: ${totalSent} sent, ${opens} opens, ${clicks} clicks`);
+            } else {
+                console.log(`[Campaign Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedCampaigns.push(campaign);
+            }
+        }
+    } catch (error) {
+        console.error(`[Campaign Enrichment] Error fetching campaign data:`, error);
+        // Return original campaigns if enrichment fails
+        return campaigns;
+    }
+
+    return enrichedCampaigns;
+}
+
+/**
+ * Enrich links with click statistics and trigger details
+ */
+async function enrichLinks(links, locationId) {
+    if (!links || links.length === 0 || !locationId) {
+        console.log('[Link Enrichment] No links to enrich or missing locationId');
+        return links;
+    }
+
+    console.log(`[Link Enrichment] Enriching ${links.length} links`);
+    const enrichedLinks = [];
+
+    try {
+        // Fetch all links from the API using search endpoint
+        const endpoint = `/links/search?locationId=${locationId}&skip=0&limit=1000`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiLinks = response.data?.links || response.data || [];
+
+        console.log(`[Link Enrichment] Fetched ${apiLinks.length} links from API`);
+
+        // Create a map for quick lookup
+        const linkMap = new Map();
+        apiLinks.forEach(link => {
+            const linkId = link._id || link.id;
+            if (linkId) {
+                linkMap.set(linkId, link);
+            }
+        });
+
+        // Enrich each link from snapshot with API data
+        for (let i = 0; i < links.length; i++) {
+            const link = links[i];
+            const linkId = link._id || link.id;
+            const linkName = link.name || 'Unnamed Link';
+
+            console.log(`[Link Enrichment] [${i + 1}/${links.length}] Processing: ${linkName}`);
+
+            const apiData = linkMap.get(linkId);
+
+            if (apiData) {
+                const enrichedLink = {
+                    ...link,
+                    // URL information
+                    fullUrl: apiData.url || link.url || '',
+                    shortUrl: apiData.shortUrl || `https://link.gohighlevel.com/${apiData.slug || link.slug || ''}`,
+                    slug: apiData.slug || link.slug || '',
+                    // Click statistics
+                    clickCount: apiData.clicks || apiData.clickCount || 0,
+                    uniqueClicks: apiData.uniqueClicks || 0,
+                    lastClickedAt: apiData.lastClickedAt || '',
+                    // Trigger information
+                    hasTrigger: !!(apiData.triggers && apiData.triggers.length > 0),
+                    triggerCount: apiData.triggers ? apiData.triggers.length : 0,
+                    triggerActions: apiData.triggers ? apiData.triggers.map(t => t.type || t.action).join('; ') : '',
+                    // Associated workflows
+                    workflowIds: apiData.workflowIds || link.workflowIds || [],
+                    // Metadata
+                    isActive: apiData.isActive !== undefined ? apiData.isActive : true,
+                    createdBy: apiData.createdBy || link.createdBy || ''
+                };
+
+                enrichedLinks.push(enrichedLink);
+                console.log(`[Link Enrichment] [${i + 1}] Enriched: ${enrichedLink.clickCount} clicks, ${enrichedLink.triggerCount} triggers`);
+            } else {
+                console.log(`[Link Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedLinks.push(link);
+            }
+        }
+    } catch (error) {
+        console.error(`[Link Enrichment] Error fetching link data:`, error);
+        // Return original links if enrichment fails
+        return links;
+    }
+
+    return enrichedLinks;
+}
+
+/**
+ * Enrich text templates/snippets with content details
+ */
+async function enrichTextTemplates(templates, locationId) {
+    if (!templates || templates.length === 0 || !locationId) {
+        console.log('[Text Template Enrichment] No templates to enrich or missing locationId');
+        return templates;
+    }
+
+    console.log(`[Text Template Enrichment] Enriching ${templates.length} text templates`);
+    const enrichedTemplates = [];
+
+    try {
+        // Fetch all snippets from the API
+        const endpoint = `/snippets/${locationId}?skip=0&limit=1000`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiTemplates = response.data?.snippets || response.data || [];
+
+        console.log(`[Text Template Enrichment] Fetched ${apiTemplates.length} templates from API`);
+
+        // Create a map for quick lookup
+        const templateMap = new Map();
+        apiTemplates.forEach(template => {
+            const templateId = template._id || template.id;
+            if (templateId) {
+                templateMap.set(templateId, template);
+            }
+        });
+
+        // Enrich each template from snapshot with API data
+        for (let i = 0; i < templates.length; i++) {
+            const template = templates[i];
+            const templateId = template._id || template.id;
+            const templateName = template.name || 'Unnamed Template';
+
+            console.log(`[Text Template Enrichment] [${i + 1}/${templates.length}] Processing: ${templateName}`);
+
+            const apiData = templateMap.get(templateId);
+
+            if (apiData) {
+                const body = apiData.body || apiData.content || '';
+                const enrichedTemplate = {
+                    ...template,
+                    // Content information
+                    bodyPreview: body ? body.substring(0, 200) + (body.length > 200 ? '...' : '') : '',
+                    characterCount: body.length,
+                    wordCount: body ? body.split(/\s+/).filter(word => word.length > 0).length : 0,
+                    // Attachments
+                    hasAttachments: !!(apiData.urlAttachments && apiData.urlAttachments.length > 0),
+                    attachmentCount: apiData.urlAttachments ? apiData.urlAttachments.length : 0,
+                    attachmentUrls: apiData.urlAttachments ? apiData.urlAttachments.join('; ') : '',
+                    // Organization
+                    folderPath: apiData.folderName || template.folderName || 'Root',
+                    isFolder: apiData.isFolder || false,
+                    totalSnippets: apiData.isFolder ? (apiData.totalSnippets || 0) : 0,
+                    // Metadata
+                    createdBy: apiData.createdBy || template.createdBy || '',
+                    updatedAt: apiData.updatedAt || apiData.dateUpdated || ''
+                };
+
+                enrichedTemplates.push(enrichedTemplate);
+                console.log(`[Text Template Enrichment] [${i + 1}] Enriched: ${enrichedTemplate.characterCount} chars, ${enrichedTemplate.attachmentCount} attachments`);
+            } else {
+                console.log(`[Text Template Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedTemplates.push(template);
+            }
+        }
+    } catch (error) {
+        console.error(`[Text Template Enrichment] Error fetching template data:`, error);
+        // Return original templates if enrichment fails
+        return templates;
+    }
+
+    return enrichedTemplates;
+}
+
+/**
+ * Enrich membership offers with pricing and product details
+ */
+async function enrichMembershipOffers(offers, locationId) {
+    if (!offers || offers.length === 0 || !locationId) {
+        console.log('[Membership Offer Enrichment] No offers to enrich or missing locationId');
+        return offers;
+    }
+
+    console.log(`[Membership Offer Enrichment] Enriching ${offers.length} membership offers`);
+    const enrichedOffers = [];
+
+    try {
+        // Fetch membership data from multiple endpoints
+        const productsEndpoint = `/membership/locations/${locationId}/products`;
+        const offersEndpoint = `/membership/smart-list/offers-products/${locationId}`;
+        const siteInfoEndpoint = `/membership/locations/${locationId}/settings/site-info`;
+
+        await window.ghlUtilsRevex.waitForReady();
+
+        // Fetch all data in parallel
+        const [productsResponse, offersResponse, siteInfoResponse] = await Promise.allSettled([
+            window.ghlUtilsRevex.get(productsEndpoint),
+            window.ghlUtilsRevex.get(offersEndpoint),
+            window.ghlUtilsRevex.get(siteInfoEndpoint)
+        ]);
+
+        const products = productsResponse.status === 'fulfilled' ? (productsResponse.value.data?.products || productsResponse.value.data || []) : [];
+        const apiOffers = offersResponse.status === 'fulfilled' ? (offersResponse.value.data?.offers || offersResponse.value.data || []) : [];
+        const siteInfo = siteInfoResponse.status === 'fulfilled' ? (siteInfoResponse.value.data || {}) : {};
+
+        console.log(`[Membership Offer Enrichment] Fetched ${products.length} products, ${apiOffers.length} offers`);
+
+        // Create maps for quick lookup
+        const offerMap = new Map();
+        apiOffers.forEach(offer => {
+            const offerId = offer._id || offer.id;
+            if (offerId) {
+                offerMap.set(offerId, offer);
+            }
+        });
+
+        const productMap = new Map();
+        products.forEach(product => {
+            const productId = product._id || product.id;
+            if (productId) {
+                productMap.set(productId, product);
+            }
+        });
+
+        // Enrich each offer from snapshot with API data
+        for (let i = 0; i < offers.length; i++) {
+            const offer = offers[i];
+            const offerId = offer._id || offer.id;
+            const offerName = offer.name || 'Unnamed Offer';
+
+            console.log(`[Membership Offer Enrichment] [${i + 1}/${offers.length}] Processing: ${offerName}`);
+
+            const apiData = offerMap.get(offerId);
+
+            if (apiData) {
+                // Get associated products
+                const productIds = apiData.products || apiData.productIds || [];
+                const associatedProducts = productIds
+                    .map(pid => productMap.get(pid))
+                    .filter(Boolean)
+                    .map(p => p.name)
+                    .join('; ');
+
+                const enrichedOffer = {
+                    ...offer,
+                    // Pricing information
+                    priceAmount: apiData.price || offer.price || 0,
+                    currency: apiData.currency || offer.currency || 'USD',
+                    billingCycle: apiData.recurringType || apiData.billingCycle || 'one-time',
+                    trialPeriod: apiData.trialPeriod || apiData.trial || 0,
+                    // Product associations
+                    productCount: productIds.length,
+                    productNames: associatedProducts,
+                    // Site information
+                    siteDomain: siteInfo.customDomain || siteInfo.subdomain || '',
+                    siteName: siteInfo.name || siteInfo.title || '',
+                    // Status
+                    isActive: apiData.isActive !== undefined ? apiData.isActive : true,
+                    isPublished: apiData.isPublished || apiData.published || false,
+                    // Metadata
+                    description: apiData.description || offer.description || '',
+                    createdBy: apiData.createdBy || offer.createdBy || ''
+                };
+
+                enrichedOffers.push(enrichedOffer);
+                console.log(`[Membership Offer Enrichment] [${i + 1}] Enriched: $${enrichedOffer.priceAmount} ${enrichedOffer.currency}, ${enrichedOffer.productCount} products`);
+            } else {
+                console.log(`[Membership Offer Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedOffers.push(offer);
+            }
+        }
+    } catch (error) {
+        console.error(`[Membership Offer Enrichment] Error fetching membership data:`, error);
+        // Return original offers if enrichment fails
+        return offers;
+    }
+
+    return enrichedOffers;
 }
 
 /**

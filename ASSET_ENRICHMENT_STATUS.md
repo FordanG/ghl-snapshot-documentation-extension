@@ -37,10 +37,30 @@ These assets fetch additional detailed information beyond what's in the snapshot
 - **Additional Info**: Subject, from name/email, reply-to, custom fields used, attachments
 - **Code Location**: snapshot-exporter.js:2069-2130 (`enrichEmailTemplates`)
 
-### 7. **Surveys** ✨ NEW!
+### 7. **Surveys**
 - **Endpoint**: `/surveys/{surveyId}`
 - **Additional Info**: Submission type/URL, thank you URL, pixel ID, total pages, total questions, submission settings
 - **Code Location**: snapshot-exporter.js:2136-2186 (`enrichSurveys`)
+
+### 8. **Campaigns** ✨ NEW!
+- **Endpoint**: `/emails/campaigns/?locationId={id}&offset=0&limit=1000&search=`
+- **Additional Info**: Total sent, opens, clicks, bounces, open rate, click rate, bounce rate, status, last sent date, workflow IDs
+- **Code Location**: snapshot-exporter.js:2188-2268 (`enrichCampaigns`)
+
+### 9. **Links** ✨ NEW!
+- **Endpoint**: `/links/search?locationId={id}&skip=0&limit=1000`
+- **Additional Info**: Full URL, short URL, click count, unique clicks, trigger information, trigger actions, workflow IDs
+- **Code Location**: snapshot-exporter.js:2270-2346 (`enrichLinks`)
+
+### 10. **Text Templates (Snippets)** ✨ NEW!
+- **Endpoint**: `/snippets/{locationId}?skip=0&limit=1000`
+- **Additional Info**: Body preview, character count, word count, attachments, folder structure
+- **Code Location**: snapshot-exporter.js:2348-2423 (`enrichTextTemplates`)
+
+### 11. **Membership Offers** ✨ NEW!
+- **Endpoint**: Multiple endpoints - `/membership/smart-list/offers-products/{locationId}`, `/membership/locations/{id}/products`, `/membership/locations/{id}/settings/site-info`
+- **Additional Info**: Pricing details, currency, billing cycle, product associations, site domain, site name, status
+- **Code Location**: snapshot-exporter.js:2425-2529 (`enrichMembershipOffers`)
 
 ## Assets WITHOUT Enrichment (Basic Export Only) ⚠️
 
@@ -50,29 +70,8 @@ These assets use ONLY the data from the snapshot endpoint - no additional API ca
 
 These assets have API endpoints available that could be used for enrichment:
 
-#### High Priority:
-1. **Campaigns** - List endpoint found: `/emails/campaigns/`
-   - **Status**: List endpoint available, no individual endpoint
-   - **Potential**: Campaign statistics (opens, clicks, sends), status, associated workflows
-   - **Priority**: HIGH - Marketing effectiveness data
-
-2. **Links** - Multiple endpoints found: `/links/`, `/links/search`
-   - **Status**: List and search endpoints available
-   - **Potential**: Click statistics, trigger actions, associated workflows
-   - **Priority**: HIGH - Campaign tracking data
-
 #### Medium Priority:
-3. **Text Templates** - Endpoint found: `/snippets/{locationId}`
-   - **Status**: List endpoint available with folder support
-   - **Potential**: Template content preview, character count, folder structure
-   - **Priority**: MEDIUM - Content organization data
-
-4. **Membership Offers** - Multiple endpoints found: `/membership/locations/{id}/products`, `/membership/smart-list/offers-products/`
-   - **Status**: List and settings endpoints available
-   - **Potential**: Pricing details, site settings, domain configuration
-   - **Priority**: MEDIUM - Revenue tracking data
-
-5. **Membership Products** - Endpoint found: `/membership/locations/{id}/products`
+1. **Membership Products** - Endpoint found: `/membership/locations/{id}/products`
    - **Status**: List endpoint available
    - **Potential**: Product details, pricing, associations
    - **Priority**: MEDIUM - Revenue tracking data
@@ -119,29 +118,29 @@ These assets only have list endpoints or no specific endpoints at all:
 
 ### Key Discoveries:
 
-1. **Campaigns Endpoint** ✅
+1. **Campaigns Endpoint** ✅ **IMPLEMENTED**
    - `GET /emails/campaigns/?locationId={id}&offset=0&limit=10&search=`
    - Provides: Campaign stats, status, send history
-   - **Recommendation**: Implement enrichment for campaign analytics
+   - **Status**: ✅ Enrichment implemented - See `enrichCampaigns` function
 
-2. **Links/Trigger Links Endpoints** ✅
+2. **Links/Trigger Links Endpoints** ✅ **IMPLEMENTED**
    - `GET /links/?locationId={id}`
    - `GET /links/search?locationId={id}&skip=0&limit=1000`
    - Provides: URLs, click stats, trigger configurations
-   - **Recommendation**: Implement enrichment for link tracking
+   - **Status**: ✅ Enrichment implemented - See `enrichLinks` function
 
-3. **Snippets (Text Templates) Endpoint** ✅
+3. **Snippets (Text Templates) Endpoint** ✅ **IMPLEMENTED**
    - `GET /snippets/{locationId}?skip=0&limit=10`
    - Provides: Template content, folders, attachments
-   - **Recommendation**: Consider enrichment for content management
+   - **Status**: ✅ Enrichment implemented - See `enrichTextTemplates` function
 
-4. **Membership Endpoints** ✅
+4. **Membership Endpoints** ✅ **IMPLEMENTED**
    - `GET /membership/locations/{id}/products`
    - `GET /membership/smart-list/offers-products/{id}`
    - `GET /membership/locations/{id}/settings/builder-settings`
    - `GET /membership/locations/{id}/settings/site-info`
    - Provides: Products, offers, site configuration
-   - **Recommendation**: Implement enrichment for revenue tracking
+   - **Status**: ✅ Enrichment implemented - See `enrichMembershipOffers` function
 
 5. **Social Planner Endpoints** ✅
    - `GET /social-media-posting/{id}/accounts?fetchAll=true`
@@ -154,30 +153,40 @@ These assets only have list endpoints or no specific endpoints at all:
 - These assets rely entirely on snapshot data
 - No enrichment possible without individual detail endpoints
 
-## Recommendations for Future Enrichment
+## Enrichment Implementation Status
 
-### Phase 1: High-Value Enrichments (Recommended Implementation)
-1. **Campaigns** - Marketing effectiveness tracking
-   - **Effort**: 4-6 hours
-   - **Value**: HIGH - Critical for marketing ROI insights
+### ✅ Phase 1: High-Value Enrichments - **COMPLETED**
+1. ✅ **Campaigns** - Marketing effectiveness tracking
+   - **Status**: IMPLEMENTED
+   - **Implementation**: `enrichCampaigns` function
+   - **Value**: HIGH - Provides marketing ROI insights with open rates, click rates, bounce rates
 
-2. **Links** - Click tracking and conversion analysis
-   - **Effort**: 3-4 hours
-   - **Value**: HIGH - Essential for campaign effectiveness
+2. ✅ **Links** - Click tracking and conversion analysis
+   - **Status**: IMPLEMENTED
+   - **Implementation**: `enrichLinks` function
+   - **Value**: HIGH - Essential campaign effectiveness with click tracking and trigger analytics
 
-### Phase 2: Medium-Value Enrichments (Consider Based on User Demand)
-3. **Membership Offers/Products** - Revenue asset details
-   - **Effort**: 5-7 hours
-   - **Value**: MEDIUM - Important for revenue tracking
+### ✅ Phase 2: Medium-Value Enrichments - **COMPLETED**
+3. ✅ **Membership Offers** - Revenue asset details
+   - **Status**: IMPLEMENTED
+   - **Implementation**: `enrichMembershipOffers` function
+   - **Value**: MEDIUM - Revenue tracking with pricing, products, site configuration
 
-4. **Text Templates** - Content organization and usage
-   - **Effort**: 2-3 hours
-   - **Value**: MEDIUM - Useful for team productivity
+4. ✅ **Text Templates** - Content organization and usage
+   - **Status**: IMPLEMENTED
+   - **Implementation**: `enrichTextTemplates` function
+   - **Value**: MEDIUM - Team productivity with content preview, character counts, folder structure
 
-### Phase 3: Low-Priority Enrichments (Optional)
+### Phase 3: Low-Priority Enrichments (Consider for Future)
 5. **Social Planner** - Integration status overview
    - **Effort**: 3-4 hours
    - **Value**: LOW - Primarily configuration data
+   - **Recommendation**: Implement only if user demand increases
+
+6. **Membership Products** - Individual product details
+   - **Effort**: 2-3 hours
+   - **Value**: LOW - Most data available through Membership Offers enrichment
+   - **Recommendation**: May not add significant value beyond existing enrichment
 
 ### Not Recommended:
 - Assets without individual endpoints (Triggers, Custom Fields, Tags, etc.)
@@ -187,11 +196,13 @@ These assets only have list endpoints or no specific endpoints at all:
 ## Summary Statistics
 
 - **Total Asset Types**: 27
-- **With Enrichment**: 7 (26%)
-- **Without Enrichment**: 20 (74%)
-  - **With Available Endpoints**: 6 (23%) - Campaigns, Links, Text Templates, Membership Offers, Membership Products, Social Planner
-  - **Without Endpoints**: 14 (51%) - No enrichment possible
-- **Recommended for Implementation**: 2 (Campaigns, Links) - High business value
+- **With Enrichment**: 11 (41%) ⬆️ +4 newly implemented!
+  - Workflows, Forms, Funnels, Calendars, Pipelines, Email Templates, Surveys
+  - **NEW:** Campaigns, Links, Text Templates, Membership Offers
+- **Without Enrichment**: 16 (59%)
+  - **With Available Endpoints**: 2 (7%) - Membership Products, Social Planner (low priority)
+  - **Without Endpoints**: 14 (52%) - No enrichment possible
+- **Implementation Progress**: Phase 1 & Phase 2 complete! ✅
 
 ## Notes
 
