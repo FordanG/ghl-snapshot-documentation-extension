@@ -1,19 +1,20 @@
-# GHL Snapshot Export Documentation
+# ✨ Super Snapshots AI
 
-A Chrome extension that exports GoHighLevel (GHL) snapshot assets to CSV format for comprehensive documentation purposes.
+An AI-powered Chrome extension that exports and enriches GoHighLevel (GHL) snapshot assets with intelligent analysis and comprehensive documentation.
 
 ## Overview
 
-This extension utilizes GHL's internal Revex backend API to fetch and export all assets from a snapshot, generating multiple CSV files (one per asset type) that can be used for documentation, auditing, or migration planning.
+Super Snapshots AI utilizes GHL's internal Revex backend API to fetch and export all assets from a snapshot, with AI-powered enrichment that adds intelligent descriptions, usage statistics, and detailed configurations. Export to Excel or CSV formats for documentation, auditing, or migration planning.
 
 ## Features
 
-- **Automatic Detection**: Automatically detects snapshot ID and company ID from the current GHL page
-- **Manual Entry**: Option to manually enter snapshot and company IDs
-- **Comprehensive Export**: Exports 27+ different asset types
-- **Progress Tracking**: Real-time progress updates during export
-- **Multiple CSV Files**: Generates separate CSV files for each asset type
-- **Summary Report**: Includes a summary CSV with counts of all asset types
+- **🤖 AI-Powered Enrichment**: Intelligent analysis and descriptions for workflows and assets
+- **📊 17 Enriched Asset Types**: Deep enrichment with usage statistics, configurations, and relationships
+- **📁 Excel & CSV Export**: Export to .xlsx workbooks or individual CSV files
+- **🎯 Automatic Detection**: Detects snapshot ID and company ID from the current GHL page
+- **⚡ Real-time Progress**: Live progress tracking during export
+- **📋 Comprehensive Coverage**: Exports 27+ different asset types
+- **🎨 Beautiful Purple UI**: Modern, professional interface inspired by supercloner.app
 
 ## What Gets Exported
 
