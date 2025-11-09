@@ -3,318 +3,339 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GHL Utils</title>
-  <link rel="stylesheet" href="popup.css">
+  <title>Super Snapshots AI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .header {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #d8b4fe;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      margin: -20px -20px 20px -20px;
+      padding: 20px 20px 15px 20px;
+      border-radius: 0;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #f3e8ff;
+    }
+
+    .export-section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 12px;
+    }
+
+    .info-box {
+      background: #f5f3ff;
+      border: 1px solid #d8b4fe;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .info-box p {
+      font-size: 12px;
+      color: #6b21a8;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: monospace;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #8B5CF6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #8B5CF6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .progress {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      background: #f3f4f6;
+      border-radius: 6px;
+    }
+
+    .progress-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .progress-text {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .features {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .features ul {
+      list-style: none;
+    }
+
+    .features li {
+      font-size: 12px;
+      color: #374151;
+      padding: 6px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .features li:before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #8B5CF6;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h1>GHL Utils</h1>
-          <p class="subtitle">Quick navigation for GoHighLevel</p>
-        </div>
-        <button id="settingsBtn" style="
-          background: none;
-          border: none;
-          font-size: 20px;
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 4px;
-          transition: background 0.2s;
-        " title="Settings">⚙️</button>
+      <h1>✨ Super Snapshots AI</h1>
+      <p class="subtitle">AI-powered GHL snapshot documentation & export</p>
+    </div>
+
+    <div class="export-section">
+      <div class="section-title">AI Analysis Settings</div>
+
+      <div class="form-group">
+        <label for="openaiKey">OpenAI API Key (Optional)</label>
+        <input type="password" id="openaiKey" placeholder="sk-...">
+        <p class="hint">Add key to enable AI-powered descriptions for workflows</p>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="enableAI" style="width: auto; margin-right: 8px; cursor: pointer;">
+          <span>Enable AI analysis for workflows</span>
+        </label>
+        <p class="hint">Generates smart descriptions and setup notes (requires API key)</p>
       </div>
     </div>
 
-    <div class="search-box">
-      <input
-        type="text"
-        id="searchInput"
-        placeholder="Type /workflow, /page, /form, /survey or paste ID..."
-        autocomplete="off"
-        autofocus
-      >
-      <button id="goButton">Go</button>
+    <div class="export-section">
+      <div class="section-title">Select Snapshot</div>
+
+      <div class="form-group">
+        <label for="snapshotSelect">Available Snapshots</label>
+        <select id="snapshotSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+          <option value="">Loading snapshots...</option>
+        </select>
+        <p class="hint">Select a snapshot from your account</p>
+      </div>
+
+      <div class="form-group">
+        <label for="exportFormat">Export Format</label>
+        <select id="exportFormat" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+          <option value="xlsx">Excel Workbook (.xlsx) - All in one file</option>
+          <option value="csv">CSV Files (.csv) - Separate files</option>
+        </select>
+        <p class="hint">Excel format recommended for easier viewing</p>
+      </div>
+
+      <button id="exportSelectedButton" class="button">
+        <span>📥</span>
+        <span>Export Selected Snapshot</span>
+      </button>
+
+      <div id="progress" class="progress">
+        <div class="progress-title">Exporting...</div>
+        <div id="progressText" class="progress-text">Preparing export...</div>
+        <div class="progress-bar-container">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+      </div>
+
+      <div id="message" class="message"></div>
     </div>
 
-    <div id="suggestions" class="suggestions"></div>
+    <div class="export-section">
+      <div class="section-title">Manual Export</div>
 
-    <div id="quickActions" class="quick-actions" style="display: none;">
-      <div class="section-title">Quick Actions</div>
-      <button id="openPageBuilder" class="action-button">
-        <span class="action-icon">🏗️</span>
-        <span class="action-text">Open in Page Builder</span>
+      <div class="form-group">
+        <label for="snapshotId">Snapshot ID</label>
+        <input type="text" id="snapshotId" placeholder="e.g., uTwVJ3PkF5HRM5oxCpL1">
+        <p class="hint">Found in the snapshot URL</p>
+      </div>
+
+      <div class="form-group">
+        <label for="companyId">Company ID</label>
+        <input type="text" id="companyId" placeholder="e.g., 3WEvz5mHuGnbYw1odUaF">
+        <p class="hint">Your GHL company/location ID</p>
+      </div>
+
+      <button id="exportManualButton" class="button">
+        <span>🚀</span>
+        <span>Export with IDs</span>
       </button>
     </div>
 
-    <div id="workflowActions" class="quick-actions" style="display: none;">
-      <div class="section-title">Workflow Actions</div>
-      <button id="analyzeWorkflow" class="action-button">
-        <span class="action-icon">📊</span>
-        <span class="action-text">Analyze Workflow</span>
-      </button>
-    </div>
-
-    <div class="help-text">
-      <div class="help-section">
-        <strong>Quick Commands:</strong>
-        <ul>
-          <li><code>/workflow</code> or <code>/w</code> - Open workflow</li>
-          <li><code>/page</code> or <code>/p</code> - Open page/funnel</li>
-          <li><code>/form</code> or <code>/f</code> - Open form</li>
-          <li><code>/survey</code> or <code>/s</code> - Open survey</li>
-          <li><code>/contact</code> or <code>/c</code> - Search contacts and view details</li>
-          <li><code>/audit</code> or <code>/a</code> - Search contacts and view audit logs</li>
-          <li><code>/builder</code> or <code>/b</code> - Open current page in builder</li>
-        </ul>
-      </div>
-      <div class="help-section">
-        <strong>Keyboard Shortcuts:</strong>
-        <p><kbd>Cmd+Shift+K</kbd> or <kbd>/</kbd> - Open command palette</p>
-        <p><kbd>Cmd+Shift+B</kbd> - Open in page builder</p>
-        <p style="font-size: 11px; color: #999; margin-top: 4px;">(Use <kbd>Ctrl</kbd> on Windows/Linux)</p>
-      </div>
-    </div>
-
-    <!-- Settings Panel -->
-    <div id="settingsPanel" style="display: none;">
-      <div style="padding: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <h2 style="margin: 0; font-size: 18px;">Settings</h2>
-          <button id="closeSettings" style="
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-          ">&times;</button>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-            Authentication Method
-          </label>
-          <select
-            id="authMethodSelect"
-            style="
-              width: 100%;
-              padding: 8px 10px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              cursor: pointer;
-              background: white;
-            "
-          >
-            <option value="revex">Current Logged-in User - Default</option>
-            <option value="pit">Private Integration Token (PIT)</option>
-          </select>
-          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
-            Uses your current GHL session (no setup required). PIT requires manual configuration.
-          </p>
-        </div>
-
-        <div id="pitFields" style="margin-bottom: 16px; display: none;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-            Private Integration Token (PIT)
-          </label>
-          <input
-            type="password"
-            id="apiKeyInput"
-            placeholder="Enter your GHL Private Integration Token"
-            style="
-              width: 100%;
-              padding: 8px 10px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              font-family: monospace;
-            "
-          />
-          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
-            Required when using PIT authentication method.
-            <a href="https://docs.google.com/document/d/your-setup-guide" target="_blank" style="color: #FB8500;">Setup Guide</a>
-          </p>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-            Location ID
-          </label>
-          <input
-            type="text"
-            id="locationIdInput"
-            placeholder="Auto-detected from current page"
-            style="
-              width: 100%;
-              padding: 8px 10px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              font-family: monospace;
-            "
-          />
-          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
-            Usually auto-detected. Found in GHL URL: /location/{locationId}/
-          </p>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-            OpenAI API Key (Optional)
-          </label>
-          <input
-            type="password"
-            id="openaiApiKeyInput"
-            placeholder="sk-..."
-            style="
-              width: 100%;
-              padding: 8px 10px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              font-family: monospace;
-            "
-          />
-          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
-            Enable AI-powered workflow analysis. Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #FB8500;">OpenAI Platform</a>
-          </p>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: flex; align-items: center; cursor: pointer;">
-            <input
-              type="checkbox"
-              id="quickNavToggle"
-              style="margin-right: 8px; cursor: pointer;"
-              checked
-            />
-            <div>
-              <span style="font-weight: 500; font-size: 13px;">Quick Navigation (Cmd+Shift+K or /)</span>
-              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
-                Enable keyboard shortcuts and command palette for faster navigation
-              </p>
-            </div>
-          </label>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: flex; align-items: center; cursor: pointer;">
-            <input
-              type="checkbox"
-              id="fieldInspectorToggle"
-              style="margin-right: 8px; cursor: pointer;"
-              checked
-            />
-            <div>
-              <span style="font-weight: 500; font-size: 13px;">Contact Field Inspector</span>
-              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
-                View all contact fields in one pane with validation status
-              </p>
-            </div>
-          </label>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: flex; align-items: center; cursor: pointer;">
-            <input
-              type="checkbox"
-              id="aiAnalysisToggle"
-              style="margin-right: 8px; cursor: pointer;"
-              checked
-            />
-            <div>
-              <span style="font-weight: 500; font-size: 13px;">🤖 AI Workflow Analysis</span>
-              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
-                Use OpenAI to analyze workflows and identify concerns (requires API key)
-              </p>
-            </div>
-          </label>
-        </div>
-
-        <!-- Export Section -->
-        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #374151;">
-            Export Data
-            <span style="
-              display: inline-block;
-              margin-left: 8px;
-              padding: 2px 8px;
-              background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%);
-              color: white;
-              border-radius: 12px;
-              font-size: 10px;
-              font-weight: 700;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            ">Beta</span>
-          </h3>
-          <button id="exportAllWorkflows" style="
-            width: 100%;
-            padding: 10px;
-            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-          ">
-            <span>📊</span>
-            <span>Export All Workflows to CSV</span>
-          </button>
-          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
-            Exports detailed analysis of all workflows in the current location to a CSV file. This may take several minutes depending on the number of workflows.
-          </p>
-          <div id="exportProgress" style="display: none; margin-top: 12px; padding: 10px; background: #f3f4f6; border-radius: 6px;">
-            <div style="font-size: 12px; font-weight: 500; margin-bottom: 6px;">Exporting workflows...</div>
-            <div style="font-size: 11px; color: #6b7280;" id="exportProgressText">Preparing export...</div>
-            <div style="width: 100%; height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 8px; overflow: hidden;">
-              <div id="exportProgressBar" style="height: 100%; background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%); width: 0%; transition: width 0.3s;"></div>
-            </div>
-          </div>
-
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-          <button id="saveSettings" style="
-            flex: 1;
-            padding: 10px;
-            background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-          ">Save Settings</button>
-          <button id="cancelSettings" style="
-            flex: 1;
-            padding: 10px;
-            background: #f3f4f6;
-            color: #374151;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-          ">Cancel</button>
-        </div>
-
-        <div id="settingsMessage" style="
-          margin-top: 12px;
-          padding: 10px;
-          border-radius: 6px;
-          font-size: 12px;
-          display: none;
-        "></div>
-      </div>
+    <div class="features">
+      <div class="section-title">What Gets Exported</div>
+      <ul>
+        <li>Custom Fields & Custom Values</li>
+        <li>Tags & Pipelines</li>
+        <li>Workflows & Triggers</li>
+        <li>Forms, Surveys & Funnels</li>
+        <li>Calendars & Campaigns</li>
+        <li>Email & Text Templates</li>
+        <li>And 15+ more asset types</li>
+      </ul>
     </div>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

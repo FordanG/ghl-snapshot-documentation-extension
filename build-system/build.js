@@ -18,9 +18,11 @@ const JS_FILES = [
   'content.js',
   'detect-ghl.js',
   'inject.js',
+  'page-exporter.js',
   'popup.js',
   'quick-navigation.js',
   'revex-auth.js',
+  'snapshot-exporter.js',
   'workflow-analyzer.js',
   'workflow-viewer.js'
 ];
@@ -33,6 +35,7 @@ const COPY_ITEMS = [
   'command-palette.css',
   'simple-popup.css',
   'workflow-viewer.css',
+  'xlsx.full.min.js',
   'icons'
 ];
 
