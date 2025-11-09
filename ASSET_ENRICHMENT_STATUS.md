@@ -90,7 +90,18 @@ These assets fetch additional detailed information beyond what's in the snapshot
 ### 17. **Custom Objects** ✨ NEW!
 - **Endpoint**: `/objects/?locationId={id}`
 - **Additional Info**: Schema details, field configurations, field types, required fields, system/enabled status
-- **Code Location**: snapshot-exporter.js:3076-3157 (`enrichCustomObjects`)
+- **Code Location**: snapshot-exporter.js:3076-3205 (`enrichCustomObjects`)
+
+### 18. **Dashboards** ✨ NEW!
+- **Endpoint**: `/reporting/dashboards?locationId={id}`, `/reporting/dashboards/{dashboardId}?locationId={id}`, `/reporting/dashboards/{dashboardId}/permissions?locationId={id}`
+- **Additional Info**: Widget configurations, widget types, layout, sharing/permissions, visibility settings
+- **Code Location**: snapshot-exporter.js:3207-3313 (`enrichDashboards`)
+
+### 19. **Quizzes** ✨ NEW!
+- **Endpoint**: `/forms/?locationId={id}&type=folder&productType=quiz`, `/forms/{formId}` (uses Forms API)
+- **Additional Info**: Same enrichment as Forms (submission type, URLs, field types, payment requirements)
+- **Code Location**: snapshot-exporter.js:1993-2043 (`enrichForms` - shared with Forms)
+- **Note**: Quizzes use the same API as Forms, just with a product type filter
 
 ## Assets WITHOUT Enrichment (Basic Export Only) ⚠️
 
@@ -125,10 +136,8 @@ These assets only have list endpoints or no specific endpoints at all:
 
 #### Advanced Features:
 10. **Triggers** - List endpoint only (`/triggers/`)
-11. **Quizzes** - No individual endpoint found
-12. **Dashboards** - No individual endpoint found
-13. **Certificates** - No individual endpoint found
-14. **Review Settings** - No individual endpoint found
+11. **Certificates** - No individual endpoint found
+12. **Review Settings** - No individual endpoint found
 
 ## Detailed Findings from API Log Analysis
 
@@ -225,15 +234,16 @@ These assets only have list endpoints or no specific endpoints at all:
 ## Summary Statistics
 
 - **Total Asset Types**: 27
-- **With Enrichment**: 17 (63%) ⬆️ +10 newly implemented!
+- **With Enrichment**: 19 (70%) ⬆️ +12 newly implemented!
   - **Previously Enriched (7)**: Workflows, Forms, Funnels, Calendars, Pipelines, Email Templates, Surveys
   - **Phase 1 & 2 (4)**: Campaigns, Links, Text Templates, Membership Offers
   - **Configuration Assets (3)**: Custom Fields, Custom Values, Tags
   - **AI & Content Assets (3)**: Knowledge Bases, Conversation AI, Custom Objects
-- **Without Enrichment**: 10 (37%)
+  - **Reporting & Forms (2)**: Dashboards, Quizzes
+- **Without Enrichment**: 8 (30%)
   - **With Available Endpoints**: 2 (7%) - Membership Products, Social Planner (low priority)
-  - **Without Endpoints**: 8 (30%) - No enrichment possible
-- **Implementation Progress**: Phase 1, Phase 2, Configuration Assets & AI/Content Assets complete! ✅
+  - **Without Endpoints**: 6 (22%) - No enrichment possible
+- **Implementation Progress**: Phase 1, Phase 2, Configuration, AI/Content & Reporting Assets complete! ✅
 
 ## Notes
 

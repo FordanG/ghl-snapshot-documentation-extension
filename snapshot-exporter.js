@@ -600,6 +600,38 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Custom Objects: ${assets.length} items`);
             }
+            // Special handling for Dashboards - enrich with widgets and permissions
+            else if (assetType.key === 'dashboards' && locationId) {
+                console.log('[Snapshot Exporter] ✅ DASHBOARD ENRICHMENT TRIGGERED');
+                sendProgressUpdate(83, `Enriching ${assets.length} dashboards...`);
+
+                const enrichedDashboards = await enrichDashboards(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedDashboards);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Dashboards');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Dashboards: ${assets.length} items`);
+            }
+            // Special handling for Quizzes - enrich using forms API (quizzes are a type of form)
+            else if (assetType.key === 'quizzes' && locationId) {
+                console.log('[Snapshot Exporter] ✅ QUIZ ENRICHMENT TRIGGERED (using Forms API)');
+                sendProgressUpdate(84, `Enriching ${assets.length} quizzes...`);
+
+                const enrichedQuizzes = await enrichForms(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedQuizzes);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Quizzes');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Quizzes: ${assets.length} items`);
+            }
             else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
@@ -3202,6 +3234,114 @@ async function enrichCustomObjects(customObjects, locationId) {
     }
 
     return enrichedObjects;
+}
+
+/**
+ * Enrich dashboards with widget configurations and permissions
+ */
+async function enrichDashboards(dashboards, locationId) {
+    if (!dashboards || dashboards.length === 0 || !locationId) {
+        console.log('[Dashboard Enrichment] No dashboards to enrich or missing locationId');
+        return dashboards;
+    }
+
+    console.log(`[Dashboard Enrichment] Enriching ${dashboards.length} dashboards`);
+    const enrichedDashboards = [];
+
+    try {
+        // Fetch all dashboards from API
+        const endpoint = `/reporting/dashboards?locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiDashboards = response.data?.dashboards || response.data || [];
+
+        console.log(`[Dashboard Enrichment] Fetched ${apiDashboards.length} dashboards from API`);
+
+        // Create a map for quick lookup
+        const dashboardMap = new Map();
+        apiDashboards.forEach(dashboard => {
+            const dashboardId = dashboard.id || dashboard._id;
+            if (dashboardId) {
+                dashboardMap.set(dashboardId, dashboard);
+            }
+        });
+
+        // Enrich each dashboard
+        for (let i = 0; i < dashboards.length; i++) {
+            const dashboard = dashboards[i];
+            const dashboardId = dashboard.id || dashboard._id;
+            const dashboardName = dashboard.name || 'Unnamed Dashboard';
+
+            console.log(`[Dashboard Enrichment] [${i + 1}/${dashboards.length}] Processing: ${dashboardName}`);
+
+            const apiData = dashboardMap.get(dashboardId);
+
+            if (apiData && dashboardId) {
+                // Try to fetch detailed information
+                let dashboardDetails = null;
+                let permissions = null;
+
+                try {
+                    // Fetch dashboard details
+                    const detailsResponse = await window.ghlUtilsRevex.get(`/reporting/dashboards/${dashboardId}?locationId=${locationId}`);
+                    dashboardDetails = detailsResponse.data || detailsResponse.data?.dashboard || null;
+                    console.log(`[Dashboard Enrichment] [${i + 1}] Fetched details for ${dashboardName}`);
+                } catch (error) {
+                    console.log(`[Dashboard Enrichment] [${i + 1}] Could not fetch details: ${error.message}`);
+                }
+
+                try {
+                    // Fetch dashboard permissions
+                    const permResponse = await window.ghlUtilsRevex.get(`/reporting/dashboards/${dashboardId}/permissions?locationId=${locationId}`);
+                    permissions = permResponse.data || permResponse.data?.permissions || null;
+                    console.log(`[Dashboard Enrichment] [${i + 1}] Fetched permissions`);
+                } catch (error) {
+                    console.log(`[Dashboard Enrichment] [${i + 1}] Could not fetch permissions: ${error.message}`);
+                }
+
+                const enrichedDashboard = {
+                    ...dashboard,
+                    // Basic info
+                    name: apiData.name || dashboard.name || '',
+                    description: dashboardDetails?.description || apiData.description || dashboard.description || '',
+                    // Widget information
+                    totalWidgets: dashboardDetails?.widgets?.length || apiData.widgets?.length || 0,
+                    widgetTypes: dashboardDetails?.widgets?.length > 0
+                        ? [...new Set(dashboardDetails.widgets.map(w => w.type).filter(Boolean))].join('; ')
+                        : '',
+                    // Layout
+                    layout: dashboardDetails?.layout || apiData.layout || dashboard.layout || '',
+                    // Permissions
+                    isShared: permissions?.isShared || false,
+                    sharedWith: permissions?.users?.length || 0,
+                    sharedWithTeams: permissions?.teams?.length || 0,
+                    visibility: permissions?.visibility || apiData.visibility || 'private',
+                    // Metadata
+                    isDefault: apiData.isDefault || dashboard.isDefault || false,
+                    createdBy: dashboardDetails?.createdBy || apiData.createdBy || dashboard.createdBy || '',
+                    createdAt: apiData.createdAt || dashboard.createdAt || '',
+                    updatedAt: dashboardDetails?.updatedAt || apiData.updatedAt || dashboard.updatedAt || ''
+                };
+
+                enrichedDashboards.push(enrichedDashboard);
+                console.log(`[Dashboard Enrichment] [${i + 1}] Enriched: ${enrichedDashboard.totalWidgets} widgets, visibility: ${enrichedDashboard.visibility}`);
+            } else {
+                console.log(`[Dashboard Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedDashboards.push(dashboard);
+            }
+
+            // Add delay to avoid rate limiting
+            if (i < dashboards.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+    } catch (error) {
+        console.error(`[Dashboard Enrichment] Error fetching dashboard data:`, error);
+        console.log('[Dashboard Enrichment] Returning snapshot data');
+        return dashboards;
+    }
+
+    return enrichedDashboards;
 }
 
 /**
