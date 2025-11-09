@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GHL Utils</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h1>GHL Utils</h1>
+          <p class="subtitle">Quick navigation for GoHighLevel</p>
+        </div>
+        <button id="settingsBtn" style="
+          background: none;
+          border: none;
+          font-size: 20px;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 4px;
+          transition: background 0.2s;
+        " title="Settings">⚙️</button>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Type /workflow, /page, /form, /survey or paste ID..."
+        autocomplete="off"
+        autofocus
+      >
+      <button id="goButton">Go</button>
+    </div>
+
+    <div id="suggestions" class="suggestions"></div>
+
+    <div id="quickActions" class="quick-actions" style="display: none;">
+      <div class="section-title">Quick Actions</div>
+      <button id="openPageBuilder" class="action-button">
+        <span class="action-icon">🏗️</span>
+        <span class="action-text">Open in Page Builder</span>
+      </button>
+    </div>
+
+    <div id="workflowActions" class="quick-actions" style="display: none;">
+      <div class="section-title">Workflow Actions</div>
+      <button id="analyzeWorkflow" class="action-button">
+        <span class="action-icon">📊</span>
+        <span class="action-text">Analyze Workflow</span>
+      </button>
+    </div>
+
+    <div class="help-text">
+      <div class="help-section">
+        <strong>Quick Commands:</strong>
+        <ul>
+          <li><code>/workflow</code> or <code>/w</code> - Open workflow</li>
+          <li><code>/page</code> or <code>/p</code> - Open page/funnel</li>
+          <li><code>/form</code> or <code>/f</code> - Open form</li>
+          <li><code>/survey</code> or <code>/s</code> - Open survey</li>
+          <li><code>/contact</code> or <code>/c</code> - Search contacts and view details</li>
+          <li><code>/audit</code> or <code>/a</code> - Search contacts and view audit logs</li>
+          <li><code>/builder</code> or <code>/b</code> - Open current page in builder</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <strong>Keyboard Shortcuts:</strong>
+        <p><kbd>Cmd+Shift+K</kbd> or <kbd>/</kbd> - Open command palette</p>
+        <p><kbd>Cmd+Shift+B</kbd> - Open in page builder</p>
+        <p style="font-size: 11px; color: #999; margin-top: 4px;">(Use <kbd>Ctrl</kbd> on Windows/Linux)</p>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settingsPanel" style="display: none;">
+      <div style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2 style="margin: 0; font-size: 18px;">Settings</h2>
+          <button id="closeSettings" style="
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+          ">&times;</button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+            Authentication Method
+          </label>
+          <select
+            id="authMethodSelect"
+            style="
+              width: 100%;
+              padding: 8px 10px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 13px;
+              cursor: pointer;
+              background: white;
+            "
+          >
+            <option value="revex">Current Logged-in User - Default</option>
+            <option value="pit">Private Integration Token (PIT)</option>
+          </select>
+          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
+            Uses your current GHL session (no setup required). PIT requires manual configuration.
+          </p>
+        </div>
+
+        <div id="pitFields" style="margin-bottom: 16px; display: none;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+            Private Integration Token (PIT)
+          </label>
+          <input
+            type="password"
+            id="apiKeyInput"
+            placeholder="Enter your GHL Private Integration Token"
+            style="
+              width: 100%;
+              padding: 8px 10px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 13px;
+              font-family: monospace;
+            "
+          />
+          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
+            Required when using PIT authentication method.
+            <a href="https://docs.google.com/document/d/your-setup-guide" target="_blank" style="color: #FB8500;">Setup Guide</a>
+          </p>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+            Location ID
+          </label>
+          <input
+            type="text"
+            id="locationIdInput"
+            placeholder="Auto-detected from current page"
+            style="
+              width: 100%;
+              padding: 8px 10px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 13px;
+              font-family: monospace;
+            "
+          />
+          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
+            Usually auto-detected. Found in GHL URL: /location/{locationId}/
+          </p>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+            OpenAI API Key (Optional)
+          </label>
+          <input
+            type="password"
+            id="openaiApiKeyInput"
+            placeholder="sk-..."
+            style="
+              width: 100%;
+              padding: 8px 10px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 13px;
+              font-family: monospace;
+            "
+          />
+          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
+            Enable AI-powered workflow analysis. Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #FB8500;">OpenAI Platform</a>
+          </p>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input
+              type="checkbox"
+              id="quickNavToggle"
+              style="margin-right: 8px; cursor: pointer;"
+              checked
+            />
+            <div>
+              <span style="font-weight: 500; font-size: 13px;">Quick Navigation (Cmd+Shift+K or /)</span>
+              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
+                Enable keyboard shortcuts and command palette for faster navigation
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input
+              type="checkbox"
+              id="fieldInspectorToggle"
+              style="margin-right: 8px; cursor: pointer;"
+              checked
+            />
+            <div>
+              <span style="font-weight: 500; font-size: 13px;">Contact Field Inspector</span>
+              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
+                View all contact fields in one pane with validation status
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input
+              type="checkbox"
+              id="aiAnalysisToggle"
+              style="margin-right: 8px; cursor: pointer;"
+              checked
+            />
+            <div>
+              <span style="font-weight: 500; font-size: 13px;">🤖 AI Workflow Analysis</span>
+              <p style="margin: 2px 0 0; font-size: 11px; color: #6b7280;">
+                Use OpenAI to analyze workflows and identify concerns (requires API key)
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <!-- Export Section -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #374151;">
+            Export Data
+            <span style="
+              display: inline-block;
+              margin-left: 8px;
+              padding: 2px 8px;
+              background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%);
+              color: white;
+              border-radius: 12px;
+              font-size: 10px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            ">Beta</span>
+          </h3>
+          <button id="exportAllWorkflows" style="
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          ">
+            <span>📊</span>
+            <span>Export All Workflows to CSV</span>
+          </button>
+          <p style="margin: 6px 0 0; font-size: 11px; color: #6b7280;">
+            Exports detailed analysis of all workflows in the current location to a CSV file. This may take several minutes depending on the number of workflows.
+          </p>
+          <div id="exportProgress" style="display: none; margin-top: 12px; padding: 10px; background: #f3f4f6; border-radius: 6px;">
+            <div style="font-size: 12px; font-weight: 500; margin-bottom: 6px;">Exporting workflows...</div>
+            <div style="font-size: 11px; color: #6b7280;" id="exportProgressText">Preparing export...</div>
+            <div style="width: 100%; height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 8px; overflow: hidden;">
+              <div id="exportProgressBar" style="height: 100%; background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%); width: 0%; transition: width 0.3s;"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button id="saveSettings" style="
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(135deg, #FB8500 0%, #FF9500 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+          ">Save Settings</button>
+          <button id="cancelSettings" style="
+            flex: 1;
+            padding: 10px;
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+          ">Cancel</button>
+        </div>
+
+        <div id="settingsMessage" style="
+          margin-top: 12px;
+          padding: 10px;
+          border-radius: 6px;
+          font-size: 12px;
+          display: none;
+        "></div>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

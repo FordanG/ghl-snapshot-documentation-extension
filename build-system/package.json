@@ -1,0 +1,13 @@
+{
+  "name": "ghl-utils-build",
+  "version": "1.0.0",
+  "description": "Build tools for GHL Utils Extension",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0",
+    "terser": "^5.31.0",
+    "archiver": "^7.0.1"
+  }
+}

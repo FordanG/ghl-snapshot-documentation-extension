@@ -1,0 +1,84 @@
+{
+  "manifest_version": 3,
+  "name": "GHL Utils",
+  "version": "1.3.0",
+  "description": "Quick navigation tool for GoHighLevel - search by workflow ID, page ID, form ID, and more. Now with workflow analyzer!",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus",
+    "clipboardWrite",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://app.gohighlevel.com/*",
+    "https://*.gohighlevel.com/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.gohighlevel.com/*",
+        "https://*.gohighlevel.com/*"
+      ],
+      "js": ["revex-auth.js", "api-wrapper.js", "content-test.js", "content.js", "bulk-contact-editor.js", "quick-navigation.js", "contact-field-inspector.js", "workflow-analyzer.js", "workflow-viewer.js"],
+      "css": ["command-palette.css", "workflow-viewer.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "https://app.gohighlevel.com/*",
+        "https://*.gohighlevel.com/*"
+      ],
+      "js": ["content-custom-domain.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "open-command-palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open GHL Utils command palette"
+    },
+    "open-page-builder": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+B",
+        "mac": "Command+Shift+B"
+      },
+      "description": "Open current page in page builder"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js", "detect-ghl.js"],
+      "matches": [
+        "https://app.gohighlevel.com/*",
+        "https://*.gohighlevel.com/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
