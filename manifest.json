@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GHL Snapshot Export Documentation",
+  "name": "Super Snapshots AI",
   "version": "1.0.0",
-  "description": "Export GoHighLevel snapshot assets to CSV format for documentation purposes",
+  "description": "AI-powered GoHighLevel snapshot documentation & export tool with intelligent asset enrichment",
   "permissions": [
     "activeTab",
     "storage",
