@@ -149,7 +149,7 @@ COPY_ITEMS.forEach(item => {
 // Create zip file
 console.log('\n📦 Creating distribution zip...');
 const archiver = require('archiver');
-const zipPath = path.join(__dirname, 'ghl-utils-protected.zip');
+const zipPath = path.join(__dirname, 'snapshot-ai.zip');
 const output = fs.createWriteStream(zipPath);
 const archive = archiver('zip', { zlib: { level: 9 } });
 
