@@ -13,8 +13,8 @@ def create_export_icon(size):
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Use orange color matching popup design
-    bg_color = (255, 107, 53, 255)  # #FF6B35 - orange
+    # Use purple color for branding
+    bg_color = (139, 92, 246, 255)  # #8B5CF6 - purple
     accent_color = (255, 255, 255, 255)  # white
 
     # Draw rounded rectangle background
