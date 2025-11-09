@@ -708,11 +708,19 @@ function convertAssetTypeToArray(assets) {
     // Get all unique keys from all assets
     const allKeys = new Set();
     assets.forEach(asset => {
-        Object.keys(asset).forEach(key => allKeys.add(key));
+        Object.keys(asset).forEach(key => {
+            // Exclude fullEnrichmentData from regular columns - it will be added at the end
+            if (key !== 'fullEnrichmentData') {
+                allKeys.add(key);
+            }
+        });
     });
 
     // Convert to array and sort
     const headers = Array.from(allKeys).sort();
+
+    // Add "Full Enrichment Data" as the last column
+    headers.push('Full Enrichment Data');
 
     // Create data array starting with headers
     const dataArray = [headers];
@@ -720,6 +728,10 @@ function convertAssetTypeToArray(assets) {
     // Add data rows
     assets.forEach(asset => {
         const row = headers.map(header => {
+            if (header === 'Full Enrichment Data') {
+                // Return the full enrichment data as JSON string
+                return asset.fullEnrichmentData ? JSON.stringify(asset.fullEnrichmentData, null, 2) : '';
+            }
             const value = asset[header];
             return formatValueForExcel(value);
         });
@@ -1565,7 +1577,9 @@ async function enrichWorkflowsWithAI(workflows, companyId, snapshotId) {
                     apiCallCount: apiCallCount,
                     workflowActions: workflowActions,
                     aiDescription: aiAnalysis.description,
-                    aiSetupNotes: aiAnalysis.setupNotes
+                    aiSetupNotes: aiAnalysis.setupNotes,
+                    // Full API data
+                    fullEnrichmentData: fullWorkflowData
                 };
 
                 const workflowDuration = Date.now() - workflowStartTime;
@@ -2104,7 +2118,8 @@ async function enrichForms(forms, locationId) {
                 totalFields: totalFields,
                 fieldTypes: fullFormData.fields ? extractFieldTypes(fullFormData.fields) : '',
                 isActive: fullFormData.isActive || false,
-                requiresPayment: fullFormData.requiresPayment || false
+                requiresPayment: fullFormData.requiresPayment || false,
+                fullEnrichmentData: fullFormData
             };
 
             enrichedForms.push(enrichedForm);
@@ -2152,7 +2167,8 @@ async function enrichFunnels(funnels, locationId) {
                 pages: fullFunnelData.pages ? fullFunnelData.pages.map(p => p.name || p.title).join('; ') : '',
                 seoTitle: fullFunnelData.seoTitle || '',
                 seoDescription: fullFunnelData.seoDescription || '',
-                faviconUrl: fullFunnelData.faviconUrl || ''
+                faviconUrl: fullFunnelData.faviconUrl || '',
+                fullEnrichmentData: fullFunnelData
             };
 
             enrichedFunnels.push(enrichedFunnel);
@@ -2208,7 +2224,8 @@ async function enrichCalendars(calendars, locationId) {
                 googleMeetIntegration: fullCalendarData.conferencingProvider === 'google_meet',
                 zoomIntegration: fullCalendarData.conferencingProvider === 'zoom',
                 conferencingProvider: fullCalendarData.conferencingProvider || '',
-                isActive: fullCalendarData.isActive !== false
+                isActive: fullCalendarData.isActive !== false,
+                fullEnrichmentData: fullCalendarData
             };
 
             enrichedCalendars.push(enrichedCalendar);
@@ -2257,7 +2274,8 @@ async function enrichPipelines(pipelines, locationId) {
                 firstStage: stages.length > 0 ? stages[0].name : '',
                 lastStage: stages.length > 0 ? stages[stages.length - 1].name : '',
                 showInFunnels: fullPipelineData.showInFunnels || false,
-                showInContacts: fullPipelineData.showInContacts || false
+                showInContacts: fullPipelineData.showInContacts || false,
+                fullEnrichmentData: fullPipelineData
             };
 
             enrichedPipelines.push(enrichedPipeline);
@@ -2308,7 +2326,8 @@ async function enrichEmailTemplates(templates, locationId) {
                 replyTo: fullTemplateData.replyTo || '',
                 customFieldsUsed: customFields,
                 hasAttachments: fullTemplateData.attachments && fullTemplateData.attachments.length > 0,
-                attachmentCount: fullTemplateData.attachments ? fullTemplateData.attachments.length : 0
+                attachmentCount: fullTemplateData.attachments ? fullTemplateData.attachments.length : 0,
+                fullEnrichmentData: fullTemplateData
             };
 
             enrichedTemplates.push(enrichedTemplate);
@@ -2363,7 +2382,8 @@ async function enrichSurveys(surveys) {
                 totalQuestions: totalQuestions,
                 isActive: fullSurveyData.isActive || false,
                 allowMultipleSubmissions: fullSurveyData.allowMultipleSubmissions || false,
-                requireLogin: fullSurveyData.requireLogin || false
+                requireLogin: fullSurveyData.requireLogin || false,
+                fullEnrichmentData: fullSurveyData
             };
 
             enrichedSurveys.push(enrichedSurvey);
@@ -2440,7 +2460,8 @@ async function enrichCampaigns(campaigns, locationId) {
                     createdBy: apiData.createdBy || campaign.createdBy || '',
                     // Associated resources
                     workflowIds: apiData.workflowIds || campaign.workflowIds || [],
-                    templateId: apiData.templateId || campaign.templateId || ''
+                    templateId: apiData.templateId || campaign.templateId || '',
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedCampaigns.push(enrichedCampaign);
@@ -2518,7 +2539,9 @@ async function enrichLinks(links, locationId) {
                     workflowIds: apiData.workflowIds || link.workflowIds || [],
                     // Metadata
                     isActive: apiData.isActive !== undefined ? apiData.isActive : true,
-                    createdBy: apiData.createdBy || link.createdBy || ''
+                    createdBy: apiData.createdBy || link.createdBy || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedLinks.push(enrichedLink);
@@ -2595,7 +2618,9 @@ async function enrichTextTemplates(templates, locationId) {
                     totalSnippets: apiData.isFolder ? (apiData.totalSnippets || 0) : 0,
                     // Metadata
                     createdBy: apiData.createdBy || template.createdBy || '',
-                    updatedAt: apiData.updatedAt || apiData.dateUpdated || ''
+                    updatedAt: apiData.updatedAt || apiData.dateUpdated || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedTemplates.push(enrichedTemplate);
@@ -2701,7 +2726,9 @@ async function enrichMembershipOffers(offers, locationId) {
                     isPublished: apiData.isPublished || apiData.published || false,
                     // Metadata
                     description: apiData.description || offer.description || '',
-                    createdBy: apiData.createdBy || offer.createdBy || ''
+                    createdBy: apiData.createdBy || offer.createdBy || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedOffers.push(enrichedOffer);
@@ -2784,7 +2811,9 @@ async function enrichCustomFields(customFields, locationId) {
                     options: apiData.options ? apiData.options.map(opt => opt.name || opt.label || opt).join('; ') : '',
                     // Metadata
                     createdBy: apiData.createdBy || field.createdBy || '',
-                    updatedAt: apiData.updatedAt || field.updatedAt || ''
+                    updatedAt: apiData.updatedAt || field.updatedAt || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedFields.push(enrichedField);
@@ -2855,7 +2884,9 @@ async function enrichCustomValues(customValues, locationId) {
                     // Metadata
                     isActive: apiData.isActive !== undefined ? apiData.isActive : true,
                     createdBy: apiData.createdBy || value.createdBy || '',
-                    updatedAt: apiData.updatedAt || value.updatedAt || ''
+                    updatedAt: apiData.updatedAt || value.updatedAt || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedValues.push(enrichedValue);
@@ -2932,7 +2963,9 @@ async function enrichTags(tags, locationId) {
                     isActive: apiData.isActive !== undefined ? apiData.isActive : true,
                     createdAt: apiData.createdAt || tag.createdAt || '',
                     createdBy: apiData.createdBy || tag.createdBy || '',
-                    lastUsedAt: apiData.lastUsedAt || ''
+                    lastUsedAt: apiData.lastUsedAt || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedTags.push(enrichedTag);
@@ -3033,7 +3066,13 @@ async function enrichKnowledgeBases(knowledgeBases, locationId) {
                     hasRichTextContent: kbDetails?.hasRichTextContent || false,
                     // Metadata
                     updatedAt: apiData.updatedAt || kbDetails?.updatedAt || kb.updatedAt || '',
-                    updatedBy: apiData.updatedBy || kbDetails?.updatedBy || kb.updatedBy || ''
+                    updatedBy: apiData.updatedBy || kbDetails?.updatedBy || kb.updatedBy || '',
+                    // Full API data
+                    fullEnrichmentData: {
+                        apiKB: apiData,
+                        details: kbDetails,
+                        files: kbFiles
+                    }
                 };
 
                 enrichedKBs.push(enrichedKB);
@@ -3134,7 +3173,9 @@ async function enrichConversationAI(aiEmployees, locationId) {
                     createdAt: apiData.createdAt || employee.createdAt || '',
                     updatedAt: apiData.updatedAt || employee.updatedAt || '',
                     updatedByUserId: apiData.updatedBy?.userId || employee.updatedBy?.userId || '',
-                    updatedByTimestamp: apiData.updatedBy?.timestamp || employee.updatedBy?.timestamp || ''
+                    updatedByTimestamp: apiData.updatedBy?.timestamp || employee.updatedBy?.timestamp || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedEmployees.push(enrichedEmployee);
@@ -3217,7 +3258,9 @@ async function enrichCustomObjects(customObjects, locationId) {
                     createdAt: apiData.createdAt || obj.createdAt || '',
                     updatedAt: apiData.updatedAt || obj.updatedAt || '',
                     createdBy: apiData.createdBy || obj.createdBy || '',
-                    updatedBy: apiData.updatedBy || obj.updatedBy || ''
+                    updatedBy: apiData.updatedBy || obj.updatedBy || '',
+                    // Full API data
+                    fullEnrichmentData: apiData
                 };
 
                 enrichedObjects.push(enrichedObject);
@@ -3320,7 +3363,13 @@ async function enrichDashboards(dashboards, locationId) {
                     isDefault: apiData.isDefault || dashboard.isDefault || false,
                     createdBy: dashboardDetails?.createdBy || apiData.createdBy || dashboard.createdBy || '',
                     createdAt: apiData.createdAt || dashboard.createdAt || '',
-                    updatedAt: dashboardDetails?.updatedAt || apiData.updatedAt || dashboard.updatedAt || ''
+                    updatedAt: dashboardDetails?.updatedAt || apiData.updatedAt || dashboard.updatedAt || '',
+                    // Full API data
+                    fullEnrichmentData: {
+                        apiDashboard: apiData,
+                        details: dashboardDetails,
+                        permissions: permissions
+                    }
                 };
 
                 enrichedDashboards.push(enrichedDashboard);
@@ -3460,23 +3509,24 @@ function convertWorkflowsToArray(workflows) {
         'aiSetupNotes': 'AI Setup Notes'
     };
 
-    // Get all other keys (excluding priority columns)
+    // Get all other keys (excluding priority columns and fullEnrichmentData)
     const allKeys = new Set();
     workflows.forEach(workflow => {
         Object.keys(workflow).forEach(key => {
-            if (!priorityColumns.includes(key)) {
+            if (!priorityColumns.includes(key) && key !== 'fullEnrichmentData') {
                 allKeys.add(key);
             }
         });
     });
 
-    // Build final column order: priority columns + other columns
+    // Build final column order: priority columns + other columns + Full Enrichment Data
     const headers = [
         ...priorityColumns.map(col => columnNames[col] || col),
-        ...Array.from(allKeys).sort()
+        ...Array.from(allKeys).sort(),
+        'Full Enrichment Data'
     ];
 
-    const fullColumnKeys = [...priorityColumns, ...Array.from(allKeys).sort()];
+    const fullColumnKeys = [...priorityColumns, ...Array.from(allKeys).sort(), 'fullEnrichmentData'];
 
     // Create data array starting with headers
     const dataArray = [headers];
@@ -3484,6 +3534,10 @@ function convertWorkflowsToArray(workflows) {
     // Add data rows
     workflows.forEach(workflow => {
         const row = fullColumnKeys.map(key => {
+            if (key === 'fullEnrichmentData') {
+                // Return the full enrichment data as JSON string
+                return workflow.fullEnrichmentData ? JSON.stringify(workflow.fullEnrichmentData, null, 2) : '';
+            }
             const value = workflow[key];
             return formatValueForExcel(value);
         });
