@@ -244,13 +244,13 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
     // Create summary data for summary sheet
     const summaryData = [];
     summaryData.push(['GHL Snapshot Export Summary']);
-    summaryData.push(['Snapshot ID', snapshotId]);
-    summaryData.push(['Snapshot Name', snapshotMetadata.name || 'N/A']);
-    summaryData.push(['Location ID', locationId || 'N/A']);
-    summaryData.push(['Snapshot Type', snapshotMetadata.type || 'N/A']);
-    summaryData.push(['Date Created', snapshotMetadata.dateAdded || 'N/A']);
-    summaryData.push(['Date Updated', snapshotMetadata.dateUpdated || 'N/A']);
-    summaryData.push(['Export Date', new Date().toISOString()]);
+    summaryData.push(['Snapshot ID', formatValueForExcel(snapshotId)]);
+    summaryData.push(['Snapshot Name', formatValueForExcel(snapshotMetadata.name || 'N/A')]);
+    summaryData.push(['Location ID', formatValueForExcel(locationId || 'N/A')]);
+    summaryData.push(['Snapshot Type', formatValueForExcel(snapshotMetadata.type || 'N/A')]);
+    summaryData.push(['Date Created', formatValueForExcel(snapshotMetadata.dateAdded || 'N/A')]);
+    summaryData.push(['Date Updated', formatValueForExcel(snapshotMetadata.dateUpdated || 'N/A')]);
+    summaryData.push(['Export Date', formatValueForExcel(new Date().toISOString())]);
     summaryData.push(['Export Format', 'Excel Workbook (.xlsx)']);
     summaryData.push([]);
     summaryData.push(['Asset Type', 'Count', 'Sheet Name']);
@@ -270,13 +270,17 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
             totalAssets += assets.length;
 
             // Add to summary
-            summaryData.push([assetType.name, assets.length, assetType.name]);
+            summaryData.push([formatValueForExcel(assetType.name), assets.length, formatValueForExcel(assetType.name)]);
 
             // Add each asset to master list
             assets.forEach(asset => {
                 const id = asset._id || asset.id || asset.ID || '';
                 const name = asset.name || asset.title || asset.Name || '';
-                masterListData.push([id, name, assetType.name]);
+                masterListData.push([
+                    formatValueForExcel(id),
+                    formatValueForExcel(name),
+                    formatValueForExcel(assetType.name)
+                ]);
             });
 
             // Special handling for workflows - fetch full data and add AI analysis
@@ -650,7 +654,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
             }
         } else {
             // Add to summary even if empty
-            summaryData.push([assetType.name, 0, 'N/A']);
+            summaryData.push([formatValueForExcel(assetType.name), 0, 'N/A']);
         }
     }
 
