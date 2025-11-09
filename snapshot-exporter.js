@@ -729,8 +729,9 @@ function convertAssetTypeToArray(assets) {
     assets.forEach(asset => {
         const row = headers.map(header => {
             if (header === 'Full Enrichment Data') {
-                // Return the full enrichment data as JSON string
-                return asset.fullEnrichmentData ? JSON.stringify(asset.fullEnrichmentData, null, 2) : '';
+                // Return the full enrichment data as JSON string, truncated to Excel limit
+                const jsonString = asset.fullEnrichmentData ? JSON.stringify(asset.fullEnrichmentData, null, 2) : '';
+                return truncateToExcelLimit(jsonString);
             }
             const value = asset[header];
             return formatValueForExcel(value);
@@ -739,6 +740,26 @@ function convertAssetTypeToArray(assets) {
     });
 
     return dataArray;
+}
+
+/**
+ * Enforce Excel's maximum cell length (32767 characters)
+ * @param {string} text - The text to limit
+ * @returns {string} - Text limited to Excel's maximum cell length
+ */
+function truncateToExcelLimit(text) {
+    const MAX_CELL_LENGTH = 32767;
+
+    if (typeof text !== 'string') {
+        return text;
+    }
+
+    if (text.length <= MAX_CELL_LENGTH) {
+        return text;
+    }
+
+    // Limit to Excel's maximum cell length
+    return text.substring(0, MAX_CELL_LENGTH);
 }
 
 /**
@@ -752,13 +773,17 @@ function formatValueForExcel(value) {
     if (typeof value === 'object') {
         // For arrays, join with semicolon
         if (Array.isArray(value)) {
-            return value.map(v => formatValueForExcel(v)).join('; ');
+            const result = value.map(v => formatValueForExcel(v)).join('; ');
+            return truncateToExcelLimit(result);
         }
         // For objects, stringify
-        return JSON.stringify(value);
+        const result = JSON.stringify(value);
+        return truncateToExcelLimit(result);
     }
 
-    return value;
+    // Convert to string and truncate
+    const result = String(value);
+    return truncateToExcelLimit(result);
 }
 
 /**
@@ -3535,8 +3560,9 @@ function convertWorkflowsToArray(workflows) {
     workflows.forEach(workflow => {
         const row = fullColumnKeys.map(key => {
             if (key === 'fullEnrichmentData') {
-                // Return the full enrichment data as JSON string
-                return workflow.fullEnrichmentData ? JSON.stringify(workflow.fullEnrichmentData, null, 2) : '';
+                // Return the full enrichment data as JSON string, truncated to Excel limit
+                const jsonString = workflow.fullEnrichmentData ? JSON.stringify(workflow.fullEnrichmentData, null, 2) : '';
+                return truncateToExcelLimit(jsonString);
             }
             const value = workflow[key];
             return formatValueForExcel(value);
