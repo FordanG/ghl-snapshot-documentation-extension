@@ -424,6 +424,22 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Email Templates: ${assets.length} items`);
             }
+            // Special handling for Surveys - enrich with full data
+            else if (assetType.key === 'surveys' && locationId) {
+                console.log('[Snapshot Exporter] ✅ SURVEY ENRICHMENT TRIGGERED');
+                sendProgressUpdate(65, `Enriching ${assets.length} surveys...`);
+
+                const enrichedSurveys = await enrichSurveys(assets);
+                const sheetData = convertAssetTypeToArray(enrichedSurveys);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Surveys');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Surveys: ${assets.length} items`);
+            }
             else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
@@ -2112,6 +2128,61 @@ async function enrichEmailTemplates(templates, locationId) {
     }
 
     return enrichedTemplates;
+}
+
+/**
+ * Enrich surveys with full details
+ */
+async function enrichSurveys(surveys) {
+    if (!surveys || surveys.length === 0) {
+        console.log('[Survey Enrichment] No surveys to enrich');
+        return surveys;
+    }
+
+    console.log(`[Survey Enrichment] Enriching ${surveys.length} surveys`);
+    const enrichedSurveys = [];
+
+    for (let i = 0; i < surveys.length; i++) {
+        const survey = surveys[i];
+        const surveyId = survey._id || survey.id;
+        const surveyName = survey.name || 'Unnamed Survey';
+
+        console.log(`[Survey Enrichment] [${i + 1}/${surveys.length}] Processing: ${surveyName}`);
+
+        try {
+            const endpoint = `/surveys/${surveyId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullSurveyData = response.data;
+
+            const totalPages = fullSurveyData.pages ? fullSurveyData.pages.length : 0;
+            const totalQuestions = fullSurveyData.pages
+                ? fullSurveyData.pages.reduce((total, page) => total + (page.questions ? page.questions.length : 0), 0)
+                : 0;
+
+            const enrichedSurvey = {
+                ...survey,
+                submissionType: fullSurveyData.submissionType || '',
+                submissionUrl: fullSurveyData.submissionUrl || '',
+                thankyouUrl: fullSurveyData.thankyouUrl || '',
+                pixelId: fullSurveyData.pixelId || '',
+                eventKey: fullSurveyData.eventKey || '',
+                totalPages: totalPages,
+                totalQuestions: totalQuestions,
+                isActive: fullSurveyData.isActive || false,
+                allowMultipleSubmissions: fullSurveyData.allowMultipleSubmissions || false,
+                requireLogin: fullSurveyData.requireLogin || false
+            };
+
+            enrichedSurveys.push(enrichedSurvey);
+            console.log(`[Survey Enrichment] [${i + 1}] Enriched: ${totalPages} pages, ${totalQuestions} questions`);
+        } catch (error) {
+            console.error(`[Survey Enrichment] [${i + 1}] Error:`, error);
+            enrichedSurveys.push(survey);
+        }
+    }
+
+    return enrichedSurveys;
 }
 
 /**
