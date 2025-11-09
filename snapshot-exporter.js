@@ -504,6 +504,54 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Membership Offers: ${assets.length} items`);
             }
+            // Special handling for Custom Fields - enrich with folder and model data
+            else if (assetType.key === 'custom_fields' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CUSTOM FIELD ENRICHMENT TRIGGERED');
+                sendProgressUpdate(77, `Enriching ${assets.length} custom fields...`);
+
+                const enrichedFields = await enrichCustomFields(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedFields);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Fields');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Fields: ${assets.length} items`);
+            }
+            // Special handling for Custom Values - enrich with organization details
+            else if (assetType.key === 'custom_values' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CUSTOM VALUE ENRICHMENT TRIGGERED');
+                sendProgressUpdate(78, `Enriching ${assets.length} custom values...`);
+
+                const enrichedValues = await enrichCustomValues(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedValues);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Values');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Values: ${assets.length} items`);
+            }
+            // Special handling for Tags - enrich with usage statistics
+            else if (assetType.key === 'tags' && locationId) {
+                console.log('[Snapshot Exporter] ✅ TAG ENRICHMENT TRIGGERED');
+                sendProgressUpdate(79, `Enriching ${assets.length} tags...`);
+
+                const enrichedTags = await enrichTags(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedTags);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Tags');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Tags: ${assets.length} items`);
+            }
             else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
@@ -2590,6 +2638,238 @@ async function enrichMembershipOffers(offers, locationId) {
     }
 
     return enrichedOffers;
+}
+
+/**
+ * Enrich custom fields with folder structure and model associations
+ */
+async function enrichCustomFields(customFields, locationId) {
+    if (!customFields || customFields.length === 0 || !locationId) {
+        console.log('[Custom Field Enrichment] No custom fields to enrich or missing locationId');
+        return customFields;
+    }
+
+    console.log(`[Custom Field Enrichment] Enriching ${customFields.length} custom fields`);
+    const enrichedFields = [];
+
+    try {
+        // Fetch all custom fields with full details using search endpoint
+        const endpoint = `/locations/${locationId}/customFields/search?parentId=&skip=0&limit=1000&documentType=&model=all&query=&includeStandards=false`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiFields = response.data?.customFields || response.data || [];
+
+        console.log(`[Custom Field Enrichment] Fetched ${apiFields.length} custom fields from API`);
+
+        // Create a map for quick lookup
+        const fieldMap = new Map();
+        apiFields.forEach(field => {
+            const fieldId = field._id || field.id;
+            if (fieldId) {
+                fieldMap.set(fieldId, field);
+            }
+        });
+
+        // Enrich each custom field from snapshot with API data
+        for (let i = 0; i < customFields.length; i++) {
+            const field = customFields[i];
+            const fieldId = field._id || field.id;
+            const fieldName = field.name || 'Unnamed Field';
+
+            console.log(`[Custom Field Enrichment] [${i + 1}/${customFields.length}] Processing: ${fieldName}`);
+
+            const apiData = fieldMap.get(fieldId);
+
+            if (apiData) {
+                const enrichedField = {
+                    ...field,
+                    // Field type and configuration
+                    dataType: apiData.dataType || apiData.type || field.dataType || '',
+                    fieldType: apiData.fieldType || field.fieldType || '',
+                    // Model associations
+                    model: apiData.model || field.model || 'contact',
+                    applicableModels: apiData.applicableModels || [apiData.model || field.model || 'contact'],
+                    // Organization
+                    folderName: apiData.folderName || apiData.parentName || field.folderName || 'Root',
+                    parentId: apiData.parentId || field.parentId || '',
+                    position: apiData.position || field.position || 0,
+                    // Field properties
+                    isRequired: apiData.isRequired || field.isRequired || false,
+                    isUnique: apiData.isUnique || field.isUnique || false,
+                    isSearchable: apiData.isSearchable || field.isSearchable || false,
+                    placeholder: apiData.placeholder || field.placeholder || '',
+                    // Options for select/dropdown fields
+                    hasOptions: !!(apiData.options && apiData.options.length > 0),
+                    optionCount: apiData.options ? apiData.options.length : 0,
+                    options: apiData.options ? apiData.options.map(opt => opt.name || opt.label || opt).join('; ') : '',
+                    // Metadata
+                    createdBy: apiData.createdBy || field.createdBy || '',
+                    updatedAt: apiData.updatedAt || field.updatedAt || ''
+                };
+
+                enrichedFields.push(enrichedField);
+                console.log(`[Custom Field Enrichment] [${i + 1}] Enriched: ${enrichedField.dataType}, ${enrichedField.model}, ${enrichedField.optionCount} options`);
+            } else {
+                console.log(`[Custom Field Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedFields.push(field);
+            }
+        }
+    } catch (error) {
+        console.error(`[Custom Field Enrichment] Error fetching custom field data:`, error);
+        // Return original fields if enrichment fails
+        return customFields;
+    }
+
+    return enrichedFields;
+}
+
+/**
+ * Enrich custom values with usage and organization details
+ */
+async function enrichCustomValues(customValues, locationId) {
+    if (!customValues || customValues.length === 0 || !locationId) {
+        console.log('[Custom Value Enrichment] No custom values to enrich or missing locationId');
+        return customValues;
+    }
+
+    console.log(`[Custom Value Enrichment] Enriching ${customValues.length} custom values`);
+    const enrichedValues = [];
+
+    try {
+        // Fetch all custom values from the API
+        const endpoint = `/locations/${locationId}/customValues/`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiValues = response.data?.customValues || response.data || [];
+
+        console.log(`[Custom Value Enrichment] Fetched ${apiValues.length} custom values from API`);
+
+        // Create a map for quick lookup
+        const valueMap = new Map();
+        apiValues.forEach(value => {
+            const valueId = value._id || value.id;
+            if (valueId) {
+                valueMap.set(valueId, value);
+            }
+        });
+
+        // Enrich each custom value from snapshot with API data
+        for (let i = 0; i < customValues.length; i++) {
+            const value = customValues[i];
+            const valueId = value._id || value.id;
+            const valueName = value.name || 'Unnamed Value';
+
+            console.log(`[Custom Value Enrichment] [${i + 1}/${customValues.length}] Processing: ${valueName}`);
+
+            const apiData = valueMap.get(valueId);
+
+            if (apiData) {
+                const enrichedValue = {
+                    ...value,
+                    // Value details
+                    value: apiData.value || value.value || '',
+                    type: apiData.type || value.type || 'text',
+                    // Organization
+                    category: apiData.category || value.category || '',
+                    description: apiData.description || value.description || '',
+                    // Metadata
+                    isActive: apiData.isActive !== undefined ? apiData.isActive : true,
+                    createdBy: apiData.createdBy || value.createdBy || '',
+                    updatedAt: apiData.updatedAt || value.updatedAt || ''
+                };
+
+                enrichedValues.push(enrichedValue);
+                console.log(`[Custom Value Enrichment] [${i + 1}] Enriched: ${enrichedValue.type}, category: ${enrichedValue.category || 'none'}`);
+            } else {
+                console.log(`[Custom Value Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedValues.push(value);
+            }
+        }
+    } catch (error) {
+        console.error(`[Custom Value Enrichment] Error fetching custom value data:`, error);
+        // Return original values if enrichment fails
+        return customValues;
+    }
+
+    return enrichedValues;
+}
+
+/**
+ * Enrich tags with usage statistics and organization details
+ */
+async function enrichTags(tags, locationId) {
+    if (!tags || tags.length === 0 || !locationId) {
+        console.log('[Tag Enrichment] No tags to enrich or missing locationId');
+        return tags;
+    }
+
+    console.log(`[Tag Enrichment] Enriching ${tags.length} tags`);
+    const enrichedTags = [];
+
+    try {
+        // Try to fetch all tags from the API
+        // Based on permissions, the endpoint should be /locations/{locationId}/tags
+        const endpoint = `/locations/${locationId}/tags`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiTags = response.data?.tags || response.data || [];
+
+        console.log(`[Tag Enrichment] Fetched ${apiTags.length} tags from API`);
+
+        // Create a map for quick lookup
+        const tagMap = new Map();
+        apiTags.forEach(tag => {
+            const tagId = tag._id || tag.id;
+            if (tagId) {
+                tagMap.set(tagId, tag);
+            }
+        });
+
+        // Enrich each tag from snapshot with API data
+        for (let i = 0; i < tags.length; i++) {
+            const tag = tags[i];
+            const tagId = tag._id || tag.id;
+            const tagName = tag.name || 'Unnamed Tag';
+
+            console.log(`[Tag Enrichment] [${i + 1}/${tags.length}] Processing: ${tagName}`);
+
+            const apiData = tagMap.get(tagId);
+
+            if (apiData) {
+                const enrichedTag = {
+                    ...tag,
+                    // Tag details
+                    name: apiData.name || tag.name || '',
+                    color: apiData.color || tag.color || '',
+                    // Usage statistics
+                    contactCount: apiData.contactCount || apiData.usageCount || 0,
+                    opportunityCount: apiData.opportunityCount || 0,
+                    totalUsage: (apiData.contactCount || 0) + (apiData.opportunityCount || 0),
+                    // Organization
+                    category: apiData.category || tag.category || '',
+                    description: apiData.description || tag.description || '',
+                    // Metadata
+                    isActive: apiData.isActive !== undefined ? apiData.isActive : true,
+                    createdAt: apiData.createdAt || tag.createdAt || '',
+                    createdBy: apiData.createdBy || tag.createdBy || '',
+                    lastUsedAt: apiData.lastUsedAt || ''
+                };
+
+                enrichedTags.push(enrichedTag);
+                console.log(`[Tag Enrichment] [${i + 1}] Enriched: ${enrichedTag.contactCount} contacts, ${enrichedTag.opportunityCount} opportunities`);
+            } else {
+                console.log(`[Tag Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedTags.push(tag);
+            }
+        }
+    } catch (error) {
+        console.error(`[Tag Enrichment] Error fetching tag data:`, error);
+        console.log('[Tag Enrichment] Tags endpoint may not be available, returning snapshot data');
+        // Return original tags if enrichment fails (endpoint might not exist)
+        return tags;
+    }
+
+    return enrichedTags;
 }
 
 /**

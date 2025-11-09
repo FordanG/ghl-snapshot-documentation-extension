@@ -62,6 +62,21 @@ These assets fetch additional detailed information beyond what's in the snapshot
 - **Additional Info**: Pricing details, currency, billing cycle, product associations, site domain, site name, status
 - **Code Location**: snapshot-exporter.js:2425-2529 (`enrichMembershipOffers`)
 
+### 12. **Custom Fields** ✨ NEW!
+- **Endpoint**: `/locations/{locationId}/customFields/search?model=all&limit=1000&includeStandards=false`
+- **Additional Info**: Data type, field type, model associations, folder structure, field properties (required, unique, searchable), dropdown options, placeholder
+- **Code Location**: snapshot-exporter.js:2595-2676 (`enrichCustomFields`)
+
+### 13. **Custom Values** ✨ NEW!
+- **Endpoint**: `/locations/{locationId}/customValues/`
+- **Additional Info**: Value details, type, category, description, active status, metadata
+- **Code Location**: snapshot-exporter.js:2678-2747 (`enrichCustomValues`)
+
+### 14. **Tags** ✨ NEW!
+- **Endpoint**: `/locations/{locationId}/tags`
+- **Additional Info**: Color, usage statistics (contact count, opportunity count, total usage), category, description, creation date, last used date
+- **Code Location**: snapshot-exporter.js:2749-2825 (`enrichTags`)
+
 ## Assets WITHOUT Enrichment (Basic Export Only) ⚠️
 
 These assets use ONLY the data from the snapshot endpoint - no additional API calls:
@@ -86,28 +101,23 @@ These assets have API endpoints available that could be used for enrichment:
 
 These assets only have list endpoints or no specific endpoints at all:
 
-#### Simple Configuration Assets:
-7. **Custom Fields** - List endpoint only (`/customFields/search`)
-8. **Custom Values** - List endpoint only (`/custom-data/social-media`)
-9. **Tags** - No individual endpoint found
-
 #### Site & Content:
-10. **Section Templates** - No individual endpoint found
+7. **Section Templates** - No individual endpoint found
 
 #### Organization:
-11. **Folders** - No individual endpoint found
-12. **Teams** - No individual endpoint found
+8. **Folders** - No individual endpoint found
+9. **Teams** - No individual endpoint found
 
 #### Advanced Features:
-13. **Triggers** - List endpoint only (`/triggers/`)
-14. **Knowledge Bases** - No individual endpoint found in current logs
-15. **Quizzes** - No individual endpoint found
-16. **Dashboards** - No individual endpoint found
-17. **Custom Objects** - List endpoint only (user-defined schemas)
-18. **Certificates** - No individual endpoint found
-19. **Review Settings** - No individual endpoint found
-20. **Conversation AI** - No individual endpoint found in current logs
-21. **Knowledge Base** - No individual endpoint found in current logs
+10. **Triggers** - List endpoint only (`/triggers/`)
+11. **Knowledge Bases** - No individual endpoint found in current logs
+12. **Quizzes** - No individual endpoint found
+13. **Dashboards** - No individual endpoint found
+14. **Custom Objects** - List endpoint only (user-defined schemas)
+15. **Certificates** - No individual endpoint found
+16. **Review Settings** - No individual endpoint found
+17. **Conversation AI** - No individual endpoint found in current logs
+18. **Knowledge Base** - No individual endpoint found in current logs
 
 ## Detailed Findings from API Log Analysis
 
@@ -149,9 +159,14 @@ These assets only have list endpoints or no specific endpoints at all:
    - **Recommendation**: Low priority - mostly status data
 
 ### Assets Confirmed WITHOUT Individual Endpoints:
-- Triggers, Custom Fields, Custom Values, Tags, Folders, Teams
+- Triggers, Folders, Teams, Section Templates, Quizzes, Dashboards, etc.
 - These assets rely entirely on snapshot data
 - No enrichment possible without individual detail endpoints
+
+### ✅ Assets Previously Without Enrichment - NOW ENRICHED:
+- **Custom Fields** - Now enriched with folder structure, model associations, field properties
+- **Custom Values** - Now enriched with value details, categories, metadata
+- **Tags** - Now enriched with usage statistics (contact/opportunity counts)
 
 ## Enrichment Implementation Status
 
@@ -188,21 +203,25 @@ These assets only have list endpoints or no specific endpoints at all:
    - **Value**: LOW - Most data available through Membership Offers enrichment
    - **Recommendation**: May not add significant value beyond existing enrichment
 
-### Not Recommended:
-- Assets without individual endpoints (Triggers, Custom Fields, Tags, etc.)
+### Not Recommended (Still No Enrichment):
+- Assets without individual endpoints (Triggers, Folders, Teams, etc.)
 - These assets have sufficient data in the snapshot already
 - No additional API calls would provide meaningful value
+
+### ✅ Previously "Not Recommended" - NOW IMPLEMENTED:
+- Custom Fields, Custom Values, Tags - Now enriched with valuable organizational and usage data!
 
 ## Summary Statistics
 
 - **Total Asset Types**: 27
-- **With Enrichment**: 11 (41%) ⬆️ +4 newly implemented!
-  - Workflows, Forms, Funnels, Calendars, Pipelines, Email Templates, Surveys
-  - **NEW:** Campaigns, Links, Text Templates, Membership Offers
-- **Without Enrichment**: 16 (59%)
+- **With Enrichment**: 14 (52%) ⬆️ +7 newly implemented!
+  - **Previously Enriched (7)**: Workflows, Forms, Funnels, Calendars, Pipelines, Email Templates, Surveys
+  - **Phase 1 & 2 (4)**: Campaigns, Links, Text Templates, Membership Offers
+  - **Configuration Assets (3)**: Custom Fields, Custom Values, Tags
+- **Without Enrichment**: 13 (48%)
   - **With Available Endpoints**: 2 (7%) - Membership Products, Social Planner (low priority)
-  - **Without Endpoints**: 14 (52%) - No enrichment possible
-- **Implementation Progress**: Phase 1 & Phase 2 complete! ✅
+  - **Without Endpoints**: 11 (41%) - No enrichment possible
+- **Implementation Progress**: Phase 1, Phase 2, & Configuration Assets complete! ✅
 
 ## Notes
 
