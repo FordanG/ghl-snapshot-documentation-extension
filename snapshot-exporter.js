@@ -180,7 +180,32 @@ async function convertSnapshotToCSVs(snapshotData, snapshotId) {
  */
 async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
     console.log('[Snapshot Exporter] Converting to Excel workbook');
-    console.log('[Snapshot Exporter] Company ID for workflow enrichment:', companyId);
+    console.log('[Snapshot Exporter] Company ID for enrichment:', companyId);
+
+    // First, fetch snapshot metadata to get locationId and additional details
+    console.log('[Snapshot Exporter] Fetching snapshot metadata...');
+    let locationId = null;
+    let snapshotMetadata = {};
+
+    try {
+        const snapshotDetailsEndpoint = `/snapshots/snapshotDetails/${snapshotId}?companyId=${companyId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const snapshotDetailsResponse = await window.ghlUtilsRevex.get(snapshotDetailsEndpoint);
+
+        if (snapshotDetailsResponse && snapshotDetailsResponse.data) {
+            snapshotMetadata = snapshotDetailsResponse.data;
+            locationId = snapshotMetadata.locationId;
+            console.log('[Snapshot Exporter] ✅ Found locationId:', locationId);
+            console.log('[Snapshot Exporter] Snapshot metadata:', {
+                name: snapshotMetadata.name,
+                type: snapshotMetadata.type,
+                dateAdded: snapshotMetadata.dateAdded,
+                dateUpdated: snapshotMetadata.dateUpdated
+            });
+        }
+    } catch (error) {
+        console.warn('[Snapshot Exporter] Could not fetch snapshot metadata:', error);
+    }
 
     // Create new workbook
     const workbook = XLSX.utils.book_new();
@@ -220,6 +245,11 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
     const summaryData = [];
     summaryData.push(['GHL Snapshot Export Summary']);
     summaryData.push(['Snapshot ID', snapshotId]);
+    summaryData.push(['Snapshot Name', snapshotMetadata.name || 'N/A']);
+    summaryData.push(['Location ID', locationId || 'N/A']);
+    summaryData.push(['Snapshot Type', snapshotMetadata.type || 'N/A']);
+    summaryData.push(['Date Created', snapshotMetadata.dateAdded || 'N/A']);
+    summaryData.push(['Date Updated', snapshotMetadata.dateUpdated || 'N/A']);
     summaryData.push(['Export Date', new Date().toISOString()]);
     summaryData.push(['Export Format', 'Excel Workbook (.xlsx)']);
     summaryData.push([]);
@@ -250,7 +280,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
             });
 
             // Special handling for workflows - fetch full data and add AI analysis
-            if (assetType.key === 'workflow' && companyId) {
+            if (assetType.key === 'workflow' && locationId) {
                 console.log('[Snapshot Exporter] ✅ WORKFLOW ENRICHMENT TRIGGERED');
                 console.log('[Snapshot Exporter] Processing workflows...');
                 console.log('[Snapshot Exporter] Workflow count:', assets.length, 'Company ID:', companyId, 'Snapshot ID:', snapshotId);
@@ -313,7 +343,88 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created sheet for Workflows with AI analysis: ${assets.length} items`);
-            } else {
+            }
+            // Special handling for Forms - enrich with full data
+            else if (assetType.key === 'forms' && locationId) {
+                console.log('[Snapshot Exporter] ✅ FORM ENRICHMENT TRIGGERED');
+                sendProgressUpdate(40, `Enriching ${assets.length} forms...`);
+
+                const enrichedForms = await enrichForms(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedForms);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Forms');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Forms: ${assets.length} items`);
+            }
+            // Special handling for Funnels - enrich with full data
+            else if (assetType.key === 'funnels' && locationId) {
+                console.log('[Snapshot Exporter] ✅ FUNNEL ENRICHMENT TRIGGERED');
+                sendProgressUpdate(45, `Enriching ${assets.length} funnels...`);
+
+                const enrichedFunnels = await enrichFunnels(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedFunnels);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Funnels');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Funnels: ${assets.length} items`);
+            }
+            // Special handling for Calendars - enrich with full data
+            else if (assetType.key === 'calendars' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CALENDAR ENRICHMENT TRIGGERED');
+                sendProgressUpdate(50, `Enriching ${assets.length} calendars...`);
+
+                const enrichedCalendars = await enrichCalendars(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedCalendars);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Calendars');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Calendars: ${assets.length} items`);
+            }
+            // Special handling for Pipelines - enrich with full data
+            else if (assetType.key === 'pipelines' && locationId) {
+                console.log('[Snapshot Exporter] ✅ PIPELINE ENRICHMENT TRIGGERED');
+                sendProgressUpdate(55, `Enriching ${assets.length} pipelines...`);
+
+                const enrichedPipelines = await enrichPipelines(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedPipelines);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Pipelines');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Pipelines: ${assets.length} items`);
+            }
+            // Special handling for Email Templates - enrich with full data
+            else if (assetType.key === 'email_templates' && locationId) {
+                console.log('[Snapshot Exporter] ✅ EMAIL TEMPLATE ENRICHMENT TRIGGERED');
+                sendProgressUpdate(60, `Enriching ${assets.length} email templates...`);
+
+                const enrichedTemplates = await enrichEmailTemplates(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedTemplates);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Email Templates');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Email Templates: ${assets.length} items`);
+            }
+            else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
@@ -1746,6 +1857,299 @@ function countActionType(workflowData, actionType) {
 
     console.log(`[countActionType] Found ${matches.length} ${actionType} actions`);
     return matches.length;
+}
+
+/**
+ * Enrich forms with full details
+ */
+async function enrichForms(forms, locationId) {
+    if (!forms || forms.length === 0 || !locationId) {
+        console.log('[Form Enrichment] No forms to enrich or missing locationId');
+        return forms;
+    }
+
+    console.log(`[Form Enrichment] Enriching ${forms.length} forms`);
+    const enrichedForms = [];
+
+    for (let i = 0; i < forms.length; i++) {
+        const form = forms[i];
+        const formId = form._id || form.id;
+        const formName = form.name || 'Unnamed Form';
+
+        console.log(`[Form Enrichment] [${i + 1}/${forms.length}] Processing: ${formName}`);
+
+        try {
+            const endpoint = `/forms/${locationId}/${formId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullFormData = response.data;
+
+            const totalFields = fullFormData.fields ? fullFormData.fields.length : 0;
+
+            const enrichedForm = {
+                ...form,
+                submissionType: fullFormData.submissionType || '',
+                submissionUrl: fullFormData.submissionUrl || '',
+                thankyouUrl: fullFormData.thankyouUrl || '',
+                pixelId: fullFormData.pixelId || '',
+                eventKey: fullFormData.eventKey || '',
+                totalFields: totalFields,
+                fieldTypes: fullFormData.fields ? extractFieldTypes(fullFormData.fields) : '',
+                isActive: fullFormData.isActive || false,
+                requiresPayment: fullFormData.requiresPayment || false
+            };
+
+            enrichedForms.push(enrichedForm);
+            console.log(`[Form Enrichment] [${i + 1}] Enriched: ${totalFields} fields`);
+        } catch (error) {
+            console.error(`[Form Enrichment] [${i + 1}] Error:`, error);
+            enrichedForms.push(form);
+        }
+    }
+
+    return enrichedForms;
+}
+
+/**
+ * Enrich funnels with full details
+ */
+async function enrichFunnels(funnels, locationId) {
+    if (!funnels || funnels.length === 0 || !locationId) {
+        console.log('[Funnel Enrichment] No funnels to enrich or missing locationId');
+        return funnels;
+    }
+
+    console.log(`[Funnel Enrichment] Enriching ${funnels.length} funnels`);
+    const enrichedFunnels = [];
+
+    for (let i = 0; i < funnels.length; i++) {
+        const funnel = funnels[i];
+        const funnelId = funnel._id || funnel.id;
+        const funnelName = funnel.name || 'Unnamed Funnel';
+
+        console.log(`[Funnel Enrichment] [${i + 1}/${funnels.length}] Processing: ${funnelName}`);
+
+        try {
+            const endpoint = `/funnels/${locationId}/${funnelId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullFunnelData = response.data;
+
+            const enrichedFunnel = {
+                ...funnel,
+                domain: fullFunnelData.domain || '',
+                customDomain: fullFunnelData.customDomain || '',
+                trackingCode: fullFunnelData.trackingCode || '',
+                pageCount: fullFunnelData.pages ? fullFunnelData.pages.length : 0,
+                pages: fullFunnelData.pages ? fullFunnelData.pages.map(p => p.name || p.title).join('; ') : '',
+                seoTitle: fullFunnelData.seoTitle || '',
+                seoDescription: fullFunnelData.seoDescription || '',
+                faviconUrl: fullFunnelData.faviconUrl || ''
+            };
+
+            enrichedFunnels.push(enrichedFunnel);
+            console.log(`[Funnel Enrichment] [${i + 1}] Enriched: ${enrichedFunnel.pageCount} pages`);
+        } catch (error) {
+            console.error(`[Funnel Enrichment] [${i + 1}] Error:`, error);
+            enrichedFunnels.push(funnel);
+        }
+    }
+
+    return enrichedFunnels;
+}
+
+/**
+ * Enrich calendars with full details
+ */
+async function enrichCalendars(calendars, locationId) {
+    if (!calendars || calendars.length === 0 || !locationId) {
+        console.log('[Calendar Enrichment] No calendars to enrich or missing locationId');
+        return calendars;
+    }
+
+    console.log(`[Calendar Enrichment] Enriching ${calendars.length} calendars`);
+    const enrichedCalendars = [];
+
+    for (let i = 0; i < calendars.length; i++) {
+        const calendar = calendars[i];
+        const calendarId = calendar._id || calendar.id;
+        const calendarName = calendar.name || 'Unnamed Calendar';
+
+        console.log(`[Calendar Enrichment] [${i + 1}/${calendars.length}] Processing: ${calendarName}`);
+
+        try {
+            const endpoint = `/calendars/${locationId}/${calendarId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullCalendarData = response.data;
+
+            const enrichedCalendar = {
+                ...calendar,
+                slug: fullCalendarData.slug || '',
+                widgetSlug: fullCalendarData.widgetSlug || '',
+                appointmentTitle: fullCalendarData.appointmentTitle || '',
+                description: fullCalendarData.description || '',
+                eventType: fullCalendarData.eventType || '',
+                eventColor: fullCalendarData.eventColor || '',
+                meetingLocation: fullCalendarData.meetingLocation || '',
+                slotDuration: fullCalendarData.slotDuration || '',
+                slotInterval: fullCalendarData.slotInterval || '',
+                slotBuffer: fullCalendarData.slotBuffer || '',
+                allowReschedule: fullCalendarData.allowReschedule || false,
+                allowCancellation: fullCalendarData.allowCancellation || false,
+                googleMeetIntegration: fullCalendarData.conferencingProvider === 'google_meet',
+                zoomIntegration: fullCalendarData.conferencingProvider === 'zoom',
+                conferencingProvider: fullCalendarData.conferencingProvider || '',
+                isActive: fullCalendarData.isActive !== false
+            };
+
+            enrichedCalendars.push(enrichedCalendar);
+            console.log(`[Calendar Enrichment] [${i + 1}] Enriched: ${calendarName}`);
+        } catch (error) {
+            console.error(`[Calendar Enrichment] [${i + 1}] Error:`, error);
+            enrichedCalendars.push(calendar);
+        }
+    }
+
+    return enrichedCalendars;
+}
+
+/**
+ * Enrich pipelines with stages and details
+ */
+async function enrichPipelines(pipelines, locationId) {
+    if (!pipelines || pipelines.length === 0 || !locationId) {
+        console.log('[Pipeline Enrichment] No pipelines to enrich or missing locationId');
+        return pipelines;
+    }
+
+    console.log(`[Pipeline Enrichment] Enriching ${pipelines.length} pipelines`);
+    const enrichedPipelines = [];
+
+    for (let i = 0; i < pipelines.length; i++) {
+        const pipeline = pipelines[i];
+        const pipelineId = pipeline._id || pipeline.id;
+        const pipelineName = pipeline.name || 'Unnamed Pipeline';
+
+        console.log(`[Pipeline Enrichment] [${i + 1}/${pipelines.length}] Processing: ${pipelineName}`);
+
+        try {
+            const endpoint = `/opportunities/pipelines/${locationId}/${pipelineId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullPipelineData = response.data;
+
+            const stages = fullPipelineData.stages || [];
+            const stageNames = stages.map(s => s.name).join('; ');
+
+            const enrichedPipeline = {
+                ...pipeline,
+                stageCount: stages.length,
+                stages: stageNames,
+                firstStage: stages.length > 0 ? stages[0].name : '',
+                lastStage: stages.length > 0 ? stages[stages.length - 1].name : '',
+                showInFunnels: fullPipelineData.showInFunnels || false,
+                showInContacts: fullPipelineData.showInContacts || false
+            };
+
+            enrichedPipelines.push(enrichedPipeline);
+            console.log(`[Pipeline Enrichment] [${i + 1}] Enriched: ${stages.length} stages`);
+        } catch (error) {
+            console.error(`[Pipeline Enrichment] [${i + 1}] Error:`, error);
+            enrichedPipelines.push(pipeline);
+        }
+    }
+
+    return enrichedPipelines;
+}
+
+/**
+ * Enrich email templates with details
+ */
+async function enrichEmailTemplates(templates, locationId) {
+    if (!templates || templates.length === 0 || !locationId) {
+        console.log('[Email Template Enrichment] No templates to enrich or missing locationId');
+        return templates;
+    }
+
+    console.log(`[Email Template Enrichment] Enriching ${templates.length} templates`);
+    const enrichedTemplates = [];
+
+    for (let i = 0; i < templates.length; i++) {
+        const template = templates[i];
+        const templateId = template._id || template.id;
+        const templateName = template.name || 'Unnamed Template';
+
+        console.log(`[Email Template Enrichment] [${i + 1}/${templates.length}] Processing: ${templateName}`);
+
+        try {
+            const endpoint = `/templates/${locationId}/${templateId}`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+            const fullTemplateData = response.data;
+
+            // Extract custom fields from template content
+            const htmlContent = fullTemplateData.html || fullTemplateData.body || '';
+            const customFields = extractCustomFieldsFromContent(htmlContent);
+
+            const enrichedTemplate = {
+                ...template,
+                subject: fullTemplateData.subject || '',
+                fromName: fullTemplateData.fromName || '',
+                fromEmail: fullTemplateData.fromEmail || '',
+                replyTo: fullTemplateData.replyTo || '',
+                customFieldsUsed: customFields,
+                hasAttachments: fullTemplateData.attachments && fullTemplateData.attachments.length > 0,
+                attachmentCount: fullTemplateData.attachments ? fullTemplateData.attachments.length : 0
+            };
+
+            enrichedTemplates.push(enrichedTemplate);
+            console.log(`[Email Template Enrichment] [${i + 1}] Enriched: ${templateName}`);
+        } catch (error) {
+            console.error(`[Email Template Enrichment] [${i + 1}] Error:`, error);
+            enrichedTemplates.push(template);
+        }
+    }
+
+    return enrichedTemplates;
+}
+
+/**
+ * Extract field types from form fields
+ */
+function extractFieldTypes(fields) {
+    const types = new Set();
+    fields.forEach(field => {
+        if (field.type) {
+            types.add(field.type);
+        }
+    });
+    return Array.from(types).join('; ');
+}
+
+/**
+ * Extract custom fields from HTML/text content
+ */
+function extractCustomFieldsFromContent(content) {
+    const fields = new Set();
+
+    // Match {{contact.field_name}} patterns
+    const customFieldMatches = content.matchAll(/\{\{contact\.([a-zA-Z0-9_]+)\}\}/g);
+    for (const match of customFieldMatches) {
+        const fieldName = match[1];
+        // Exclude standard contact fields
+        if (!['first_name', 'last_name', 'email', 'phone', 'name', 'id'].includes(fieldName)) {
+            fields.add(fieldName);
+        }
+    }
+
+    // Match {{contact.custom_fields.field_name}} patterns
+    const customFieldsMatches = content.matchAll(/\{\{contact\.custom_fields\.([a-zA-Z0-9_]+)\}\}/g);
+    for (const match of customFieldsMatches) {
+        fields.add(match[1]);
+    }
+
+    return Array.from(fields).filter(Boolean).join('; ');
 }
 
 /**
