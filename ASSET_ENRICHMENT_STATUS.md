@@ -77,6 +77,21 @@ These assets fetch additional detailed information beyond what's in the snapshot
 - **Additional Info**: Color, usage statistics (contact count, opportunity count, total usage), category, description, creation date, last used date
 - **Code Location**: snapshot-exporter.js:2749-2825 (`enrichTags`)
 
+### 15. **Knowledge Bases** ✨ NEW!
+- **Endpoint**: `/knowledge-base/all?locationId={id}`, `/knowledge-base/{knowledgeBaseId}`, `/knowledge-base/files/all?knowledgeBaseId={id}`
+- **Additional Info**: Files, file types, file size, content statistics, website/rich text content indicators
+- **Code Location**: snapshot-exporter.js:2875-2978 (`enrichKnowledgeBases`)
+
+### 16. **Conversation AI** ✨ NEW!
+- **Endpoint**: `/ai-employees/employees/search?limit=1000&locationId={id}`
+- **Additional Info**: Bot configuration, goal/prompt details, actions, channels, knowledge base associations, wait/sleep settings
+- **Code Location**: snapshot-exporter.js:2980-3074 (`enrichConversationAI`)
+
+### 17. **Custom Objects** ✨ NEW!
+- **Endpoint**: `/objects/?locationId={id}`
+- **Additional Info**: Schema details, field configurations, field types, required fields, system/enabled status
+- **Code Location**: snapshot-exporter.js:3076-3157 (`enrichCustomObjects`)
+
 ## Assets WITHOUT Enrichment (Basic Export Only) ⚠️
 
 These assets use ONLY the data from the snapshot endpoint - no additional API calls:
@@ -110,14 +125,10 @@ These assets only have list endpoints or no specific endpoints at all:
 
 #### Advanced Features:
 10. **Triggers** - List endpoint only (`/triggers/`)
-11. **Knowledge Bases** - No individual endpoint found in current logs
-12. **Quizzes** - No individual endpoint found
-13. **Dashboards** - No individual endpoint found
-14. **Custom Objects** - List endpoint only (user-defined schemas)
-15. **Certificates** - No individual endpoint found
-16. **Review Settings** - No individual endpoint found
-17. **Conversation AI** - No individual endpoint found in current logs
-18. **Knowledge Base** - No individual endpoint found in current logs
+11. **Quizzes** - No individual endpoint found
+12. **Dashboards** - No individual endpoint found
+13. **Certificates** - No individual endpoint found
+14. **Review Settings** - No individual endpoint found
 
 ## Detailed Findings from API Log Analysis
 
@@ -214,14 +225,15 @@ These assets only have list endpoints or no specific endpoints at all:
 ## Summary Statistics
 
 - **Total Asset Types**: 27
-- **With Enrichment**: 14 (52%) ⬆️ +7 newly implemented!
+- **With Enrichment**: 17 (63%) ⬆️ +10 newly implemented!
   - **Previously Enriched (7)**: Workflows, Forms, Funnels, Calendars, Pipelines, Email Templates, Surveys
   - **Phase 1 & 2 (4)**: Campaigns, Links, Text Templates, Membership Offers
   - **Configuration Assets (3)**: Custom Fields, Custom Values, Tags
-- **Without Enrichment**: 13 (48%)
+  - **AI & Content Assets (3)**: Knowledge Bases, Conversation AI, Custom Objects
+- **Without Enrichment**: 10 (37%)
   - **With Available Endpoints**: 2 (7%) - Membership Products, Social Planner (low priority)
-  - **Without Endpoints**: 11 (41%) - No enrichment possible
-- **Implementation Progress**: Phase 1, Phase 2, & Configuration Assets complete! ✅
+  - **Without Endpoints**: 8 (30%) - No enrichment possible
+- **Implementation Progress**: Phase 1, Phase 2, Configuration Assets & AI/Content Assets complete! ✅
 
 ## Notes
 

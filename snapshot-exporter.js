@@ -552,6 +552,54 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Tags: ${assets.length} items`);
             }
+            // Special handling for Knowledge Bases - enrich with files and content
+            else if (assetType.key === 'knowledge_bases' && locationId) {
+                console.log('[Snapshot Exporter] ✅ KNOWLEDGE BASE ENRICHMENT TRIGGERED');
+                sendProgressUpdate(80, `Enriching ${assets.length} knowledge bases...`);
+
+                const enrichedKBs = await enrichKnowledgeBases(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedKBs);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Knowledge_Bases');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Knowledge Bases: ${assets.length} items`);
+            }
+            // Special handling for Conversation AI - enrich with configuration and metrics
+            else if (assetType.key === 'conversation_ai' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CONVERSATION AI ENRICHMENT TRIGGERED');
+                sendProgressUpdate(81, `Enriching ${assets.length} AI employees...`);
+
+                const enrichedEmployees = await enrichConversationAI(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedEmployees);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Conversation_AI');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Conversation AI: ${assets.length} items`);
+            }
+            // Special handling for Custom Objects - enrich with schema details
+            else if (assetType.key === 'custom_objects' && locationId) {
+                console.log('[Snapshot Exporter] ✅ CUSTOM OBJECT ENRICHMENT TRIGGERED');
+                sendProgressUpdate(82, `Enriching ${assets.length} custom objects...`);
+
+                const enrichedObjects = await enrichCustomObjects(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedObjects);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                const colWidths = sheetData[0].map(() => ({ wch: 20 }));
+                worksheet['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Objects');
+                sheetsCreated++;
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Objects: ${assets.length} items`);
+            }
             else {
                 // Normal processing for other asset types
                 const sheetData = convertAssetTypeToArray(assets);
@@ -2870,6 +2918,290 @@ async function enrichTags(tags, locationId) {
     }
 
     return enrichedTags;
+}
+
+/**
+ * Enrich knowledge bases with files, content, and usage details
+ */
+async function enrichKnowledgeBases(knowledgeBases, locationId) {
+    if (!knowledgeBases || knowledgeBases.length === 0 || !locationId) {
+        console.log('[Knowledge Base Enrichment] No knowledge bases to enrich or missing locationId');
+        return knowledgeBases;
+    }
+
+    console.log(`[Knowledge Base Enrichment] Enriching ${knowledgeBases.length} knowledge bases`);
+    const enrichedKBs = [];
+
+    try {
+        // Fetch all knowledge bases from API
+        const endpoint = `/knowledge-base/all?locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiKBs = response.data?.knowledgeBases || response.data?.data?.knowledgeBases || [];
+
+        console.log(`[Knowledge Base Enrichment] Fetched ${apiKBs.length} knowledge bases from API`);
+
+        // Create a map for quick lookup
+        const kbMap = new Map();
+        apiKBs.forEach(kb => {
+            const kbId = kb.id || kb._id;
+            if (kbId) {
+                kbMap.set(kbId, kb);
+            }
+        });
+
+        // Enrich each knowledge base
+        for (let i = 0; i < knowledgeBases.length; i++) {
+            const kb = knowledgeBases[i];
+            const kbId = kb.id || kb._id;
+            const kbName = kb.name || 'Unnamed Knowledge Base';
+
+            console.log(`[Knowledge Base Enrichment] [${i + 1}/${knowledgeBases.length}] Processing: ${kbName}`);
+
+            const apiData = kbMap.get(kbId);
+
+            if (apiData && kbId) {
+                // Try to fetch detailed information for this knowledge base
+                let kbDetails = null;
+                let kbFiles = [];
+
+                try {
+                    // Fetch KB details
+                    const detailsResponse = await window.ghlUtilsRevex.get(`/knowledge-base/${kbId}`);
+                    kbDetails = detailsResponse.data || detailsResponse.data?.data || null;
+                    console.log(`[Knowledge Base Enrichment] [${i + 1}] Fetched details for ${kbName}`);
+                } catch (error) {
+                    console.log(`[Knowledge Base Enrichment] [${i + 1}] Could not fetch details: ${error.message}`);
+                }
+
+                try {
+                    // Fetch KB files
+                    const filesResponse = await window.ghlUtilsRevex.get(`/knowledge-base/files/all?knowledgeBaseId=${kbId}`);
+                    kbFiles = filesResponse.data?.files || filesResponse.data?.data?.files || [];
+                    console.log(`[Knowledge Base Enrichment] [${i + 1}] Fetched ${kbFiles.length} files`);
+                } catch (error) {
+                    console.log(`[Knowledge Base Enrichment] [${i + 1}] Could not fetch files: ${error.message}`);
+                }
+
+                const enrichedKB = {
+                    ...kb,
+                    // Basic info
+                    name: apiData.name || kb.name || '',
+                    isDefault: apiData.isDefault || kb.isDefault || false,
+                    createdAt: apiData.createdAt || kb.createdAt || '',
+                    // Details from detailed endpoint
+                    description: kbDetails?.description || kb.description || '',
+                    // File statistics
+                    totalFiles: kbFiles.length || 0,
+                    fileTypes: kbFiles.length > 0 ? [...new Set(kbFiles.map(f => f.fileType || f.type).filter(Boolean))].join('; ') : '',
+                    totalFileSize: kbFiles.reduce((sum, f) => sum + (f.size || 0), 0),
+                    fileNames: kbFiles.length > 0 ? kbFiles.map(f => f.name || f.fileName).filter(Boolean).join('; ') : '',
+                    // Content statistics
+                    hasWebsiteContent: kbDetails?.hasWebsiteContent || false,
+                    hasRichTextContent: kbDetails?.hasRichTextContent || false,
+                    // Metadata
+                    updatedAt: apiData.updatedAt || kbDetails?.updatedAt || kb.updatedAt || '',
+                    updatedBy: apiData.updatedBy || kbDetails?.updatedBy || kb.updatedBy || ''
+                };
+
+                enrichedKBs.push(enrichedKB);
+                console.log(`[Knowledge Base Enrichment] [${i + 1}] Enriched: ${enrichedKB.totalFiles} files, ${enrichedKB.totalFileSize} bytes`);
+            } else {
+                console.log(`[Knowledge Base Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedKBs.push(kb);
+            }
+
+            // Add delay to avoid rate limiting
+            if (i < knowledgeBases.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+    } catch (error) {
+        console.error(`[Knowledge Base Enrichment] Error fetching knowledge base data:`, error);
+        console.log('[Knowledge Base Enrichment] Returning snapshot data');
+        return knowledgeBases;
+    }
+
+    return enrichedKBs;
+}
+
+/**
+ * Enrich conversation AI employees with configuration and performance metrics
+ */
+async function enrichConversationAI(aiEmployees, locationId) {
+    if (!aiEmployees || aiEmployees.length === 0 || !locationId) {
+        console.log('[Conversation AI Enrichment] No AI employees to enrich or missing locationId');
+        return aiEmployees;
+    }
+
+    console.log(`[Conversation AI Enrichment] Enriching ${aiEmployees.length} AI employees`);
+    const enrichedEmployees = [];
+
+    try {
+        // Fetch all AI employees from API
+        const endpoint = `/ai-employees/employees/search?limit=1000&query=&locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiEmployees = response.data?.employees || response.data || [];
+
+        console.log(`[Conversation AI Enrichment] Fetched ${apiEmployees.length} AI employees from API`);
+
+        // Create a map for quick lookup
+        const employeeMap = new Map();
+        apiEmployees.forEach(employee => {
+            const employeeId = employee.id || employee._id;
+            if (employeeId) {
+                employeeMap.set(employeeId, employee);
+            }
+        });
+
+        // Enrich each AI employee
+        for (let i = 0; i < aiEmployees.length; i++) {
+            const employee = aiEmployees[i];
+            const employeeId = employee.id || employee._id;
+            const employeeName = employee.name || 'Unnamed AI Employee';
+
+            console.log(`[Conversation AI Enrichment] [${i + 1}/${aiEmployees.length}] Processing: ${employeeName}`);
+
+            const apiData = employeeMap.get(employeeId);
+
+            if (apiData) {
+                const enrichedEmployee = {
+                    ...employee,
+                    // Basic info
+                    name: apiData.name || employee.name || '',
+                    mode: apiData.mode || employee.mode || 'off',
+                    botType: apiData.botType || employee.botType || '',
+                    businessName: apiData.businessName || employee.businessName || '',
+                    // Configuration
+                    waitTime: apiData.waitTime || employee.waitTime || 0,
+                    waitTimeUnit: apiData.waitTimeUnit || employee.waitTimeUnit || 'seconds',
+                    sleepTime: apiData.sleepTime || employee.sleepTime || 0,
+                    sleepTimeUnit: apiData.sleepTimeUnit || employee.sleepTimeUnit || 'hours',
+                    sleepEnabled: apiData.sleepEnabled !== undefined ? apiData.sleepEnabled : false,
+                    autoPilotMaxMessages: apiData.autoPilotMaxMessages || employee.autoPilotMaxMessages || 0,
+                    // Goal and prompt
+                    goalType: apiData.goal?.type || employee.goal?.type || '',
+                    goalPrompt: apiData.goal?.prompt || employee.goal?.prompt || '',
+                    promptId: apiData.prompt || employee.prompt || '',
+                    // Actions
+                    totalActions: apiData.actions?.length || employee.actions?.length || 0,
+                    actionTypes: apiData.actions?.length > 0
+                        ? [...new Set(apiData.actions.map(a => a.type).filter(Boolean))].join('; ')
+                        : '',
+                    // Knowledge bases
+                    knowledgeBaseIds: apiData.knowledgeBaseIds?.join('; ') || employee.knowledgeBaseIds?.join('; ') || '',
+                    totalKnowledgeBases: apiData.knowledgeBaseIds?.length || employee.knowledgeBaseIds?.length || 0,
+                    // Channels
+                    channels: apiData.channels?.map(c => c.name).join('; ') || employee.channels?.map(c => c.name).join('; ') || '',
+                    primaryChannels: apiData.channels?.filter(c => c.isPrimary).map(c => c.name).join('; ') || '',
+                    isPrimary: apiData.isPrimary !== undefined ? apiData.isPrimary : employee.isPrimary,
+                    // Status
+                    deleted: apiData.deleted !== undefined ? apiData.deleted : false,
+                    // Metadata
+                    createdAt: apiData.createdAt || employee.createdAt || '',
+                    updatedAt: apiData.updatedAt || employee.updatedAt || '',
+                    updatedByUserId: apiData.updatedBy?.userId || employee.updatedBy?.userId || '',
+                    updatedByTimestamp: apiData.updatedBy?.timestamp || employee.updatedBy?.timestamp || ''
+                };
+
+                enrichedEmployees.push(enrichedEmployee);
+                console.log(`[Conversation AI Enrichment] [${i + 1}] Enriched: ${enrichedEmployee.totalActions} actions, ${enrichedEmployee.totalKnowledgeBases} KBs, mode: ${enrichedEmployee.mode}`);
+            } else {
+                console.log(`[Conversation AI Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedEmployees.push(employee);
+            }
+        }
+    } catch (error) {
+        console.error(`[Conversation AI Enrichment] Error fetching AI employee data:`, error);
+        console.log('[Conversation AI Enrichment] Returning snapshot data');
+        return aiEmployees;
+    }
+
+    return enrichedEmployees;
+}
+
+/**
+ * Enrich custom objects with schema and configuration details
+ */
+async function enrichCustomObjects(customObjects, locationId) {
+    if (!customObjects || customObjects.length === 0 || !locationId) {
+        console.log('[Custom Object Enrichment] No custom objects to enrich or missing locationId');
+        return customObjects;
+    }
+
+    console.log(`[Custom Object Enrichment] Enriching ${customObjects.length} custom objects`);
+    const enrichedObjects = [];
+
+    try {
+        // Fetch all custom objects from API
+        const endpoint = `/objects/?locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const apiObjects = response.data?.objects || response.data || [];
+
+        console.log(`[Custom Object Enrichment] Fetched ${apiObjects.length} custom objects from API`);
+
+        // Create a map for quick lookup
+        const objectMap = new Map();
+        apiObjects.forEach(obj => {
+            const objId = obj.id || obj._id;
+            if (objId) {
+                objectMap.set(objId, obj);
+            }
+        });
+
+        // Enrich each custom object
+        for (let i = 0; i < customObjects.length; i++) {
+            const obj = customObjects[i];
+            const objId = obj.id || obj._id;
+            const objName = obj.name || 'Unnamed Custom Object';
+
+            console.log(`[Custom Object Enrichment] [${i + 1}/${customObjects.length}] Processing: ${objName}`);
+
+            const apiData = objectMap.get(objId);
+
+            if (apiData) {
+                const enrichedObject = {
+                    ...obj,
+                    // Basic info
+                    name: apiData.name || obj.name || '',
+                    objectName: apiData.objectName || obj.objectName || '',
+                    type: apiData.type || obj.type || '',
+                    // Schema details
+                    totalFields: apiData.fields?.length || obj.fields?.length || 0,
+                    fieldNames: apiData.fields?.length > 0
+                        ? apiData.fields.map(f => f.name || f.label).filter(Boolean).join('; ')
+                        : (obj.fields?.length > 0 ? obj.fields.map(f => f.name || f.label).filter(Boolean).join('; ') : ''),
+                    fieldTypes: apiData.fields?.length > 0
+                        ? [...new Set(apiData.fields.map(f => f.type).filter(Boolean))].join('; ')
+                        : (obj.fields?.length > 0 ? [...new Set(obj.fields.map(f => f.type).filter(Boolean))].join('; ') : ''),
+                    requiredFields: apiData.fields?.filter(f => f.required).map(f => f.name).join('; ') || '',
+                    // Configuration
+                    isEnabled: apiData.isEnabled !== undefined ? apiData.isEnabled : obj.isEnabled,
+                    isSystem: apiData.isSystem !== undefined ? apiData.isSystem : obj.isSystem,
+                    iconName: apiData.iconName || obj.iconName || '',
+                    // Metadata
+                    createdAt: apiData.createdAt || obj.createdAt || '',
+                    updatedAt: apiData.updatedAt || obj.updatedAt || '',
+                    createdBy: apiData.createdBy || obj.createdBy || '',
+                    updatedBy: apiData.updatedBy || obj.updatedBy || ''
+                };
+
+                enrichedObjects.push(enrichedObject);
+                console.log(`[Custom Object Enrichment] [${i + 1}] Enriched: ${enrichedObject.totalFields} fields, type: ${enrichedObject.type}`);
+            } else {
+                console.log(`[Custom Object Enrichment] [${i + 1}] No API data found, using snapshot data only`);
+                enrichedObjects.push(obj);
+            }
+        }
+    } catch (error) {
+        console.error(`[Custom Object Enrichment] Error fetching custom object data:`, error);
+        console.log('[Custom Object Enrichment] Returning snapshot data');
+        return customObjects;
+    }
+
+    return enrichedObjects;
 }
 
 /**
