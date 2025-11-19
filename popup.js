@@ -25,7 +25,7 @@ chrome.storage.local.get(['openaiApiKey', 'aiAnalysisEnabled'], (result) => {
   if (result.openaiApiKey) {
     openaiKeyInput.value = result.openaiApiKey;
   }
-  enableAICheckbox.checked = result.aiAnalysisEnabled !== false; // Default to true
+  enableAICheckbox.checked = result.aiAnalysisEnabled === true; // Default to false (unchecked)
 });
 
 // Save OpenAI key when it changes

@@ -131,7 +131,11 @@
   console.log('[Inject.js] Message posted to content script');
 
   // Expose Revex service to window for content scripts
-  const REVEX_URL = 'https://backend.leadconnectorhq.com';
+  const BASE_URLS = {
+    backend: 'https://backend.leadconnectorhq.com',
+    services: 'https://services.leadconnectorhq.com'
+  };
+  const DEFAULT_BASE = 'backend';
   let revexService = null;
   let isRevexReady = false;
 
@@ -198,7 +202,7 @@
   window.addEventListener('message', async (event) => {
     if (event.source !== window) return;
 
-    const { type, endpoint, data: reqData, requestId } = event.data;
+    const { type, endpoint, data: reqData, requestId, baseUrl } = event.data;
 
     // Handle readiness check requests
     if (type === 'REVEX_CHECK_READY') {
@@ -224,7 +228,69 @@
       }
 
       let response;
-      const fullUrl = REVEX_URL + endpoint;
+
+      // Handle REVEX_FETCH - flexible fetch with custom URLs and any HTTP method
+      if (type === 'REVEX_FETCH') {
+        console.log('[Inject.js] REVEX_FETCH request:', reqData?.method || 'GET', endpoint);
+
+        if (!authToken) {
+          throw new Error('Auth token not available for fetch request');
+        }
+
+        const method = reqData?.method || 'GET';
+        const customHeaders = reqData?.headers || {};
+
+        // Build headers with auth token
+        const headers = {
+          'Authorization': `Bearer ${authToken}`,
+          'channel': 'APP',
+          'source': 'WEB_USER',
+          'version': '2021-07-28',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...customHeaders
+        };
+
+        // Build fetch options
+        const fetchOptions = {
+          method: method,
+          headers: headers,
+          credentials: 'omit'
+        };
+
+        // Add body for methods that support it
+        if (reqData?.body && !['GET', 'HEAD'].includes(method)) {
+          fetchOptions.body = typeof reqData.body === 'string'
+            ? reqData.body
+            : JSON.stringify(reqData.body);
+        }
+
+        console.log('[Inject.js] Fetch options:', { method, url: endpoint });
+
+        const fetchResponse = await fetch(endpoint, fetchOptions);
+
+        if (!fetchResponse.ok) {
+          throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`);
+        }
+
+        const data = await fetchResponse.json();
+        response = { data, status: fetchResponse.status };
+
+        window.postMessage({
+          type: 'REVEX_RESPONSE',
+          requestId,
+          success: true,
+          data: response.data,
+          status: response.status
+        }, '*');
+        return;
+      }
+
+      // Determine which base URL to use
+      const selectedBase = baseUrl && BASE_URLS[baseUrl] ? BASE_URLS[baseUrl] : BASE_URLS[DEFAULT_BASE];
+      const fullUrl = selectedBase + endpoint;
+
+      console.log('[Inject.js] Using base URL:', selectedBase, 'for endpoint:', endpoint);
 
       // For snapshot-appengine endpoints, use direct fetch with Bearer token
       const needsDirectFetch = endpoint.includes('/snapshots-appengine/');

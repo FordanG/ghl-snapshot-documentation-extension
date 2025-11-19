@@ -63,7 +63,11 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
         console.log('[Snapshot Exporter] Snapshot data received');
         console.log('[Snapshot Exporter] Asset types found:', Object.keys(snapshotData));
         console.log('[Snapshot Exporter] Sample data structure:', JSON.stringify(snapshotData).substring(0, 500));
-        sendProgressUpdate(30, 'Processing snapshot assets...');
+
+        // Calculate and display estimated time
+        const timeEstimate = estimateExportTime(snapshotData);
+        console.log(`[Snapshot Exporter] Estimated export time: ${timeEstimate.formatted} (${timeEstimate.seconds}s)`);
+        sendProgressUpdate(30, `Processing snapshot assets... Estimated time: ${timeEstimate.formatted}`);
 
         if (format === 'xlsx') {
             // Export as single Excel workbook
@@ -286,8 +290,8 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 console.log('[Snapshot Exporter] Workflow count:', assets.length, 'Company ID:', companyId, 'Snapshot ID:', snapshotId);
 
                 // Check if AI is enabled to show appropriate message
-                const aiSettings = await chrome.storage.local.get(['aiAnalysisEnabled']);
-                const aiEnabled = aiSettings.aiAnalysisEnabled !== false;
+                const aiSettings = await chrome.storage.local.get(['aiAnalysisEnabled', 'openaiApiKey']);
+                const aiEnabled = aiSettings.aiAnalysisEnabled === true && aiSettings.openaiApiKey;
                 const progressMsg = aiEnabled
                     ? `Analyzing ${assets.length} workflows with AI...`
                     : `Enriching ${assets.length} workflows...`;
@@ -363,18 +367,57 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
             // Special handling for Funnels - enrich with full data
             else if (assetType.key === 'funnels' && locationId) {
                 console.log('[Snapshot Exporter] ✅ FUNNEL ENRICHMENT TRIGGERED');
-                sendProgressUpdate(45, `Enriching ${assets.length} funnels...`);
+                sendProgressUpdate(45, `Starting funnel enrichment for ${assets.length} funnel${assets.length > 1 ? 's' : ''}... This may take a while.`);
 
-                const enrichedFunnels = await enrichFunnels(assets, locationId);
+                const { enrichedFunnels, allPages, allSteps, allElementCounts } = await enrichFunnels(assets, locationId);
+
+                // Create main Funnels sheet
                 const sheetData = convertAssetTypeToArray(enrichedFunnels);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
                 worksheet['!cols'] = colWidths;
-
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Funnels');
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Funnels: ${assets.length} items`);
+
+                // Create Funnel Pages sheet
+                if (allPages.length > 0) {
+                    console.log('[Snapshot Exporter] Creating Funnel Pages sheet...');
+                    sendProgressUpdate(46, `Creating Funnel Pages sheet with ${allPages.length} pages...`);
+                    const pagesSheetData = convertAssetTypeToArray(allPages);
+                    const pagesWorksheet = XLSX.utils.aoa_to_sheet(pagesSheetData);
+                    const pagesColWidths = pagesSheetData[0].map(() => ({ wch: 20 }));
+                    pagesWorksheet['!cols'] = pagesColWidths;
+                    XLSX.utils.book_append_sheet(workbook, pagesWorksheet, 'Funnel Pages');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Funnel Pages sheet: ${allPages.length} pages`);
+                }
+
+                // Create Funnel Steps sheet
+                if (allSteps.length > 0) {
+                    console.log('[Snapshot Exporter] Creating Funnel Steps sheet...');
+                    sendProgressUpdate(47, `Creating Funnel Steps sheet with ${allSteps.length} steps...`);
+                    const stepsSheetData = convertAssetTypeToArray(allSteps);
+                    const stepsWorksheet = XLSX.utils.aoa_to_sheet(stepsSheetData);
+                    const stepsColWidths = stepsSheetData[0].map(() => ({ wch: 20 }));
+                    stepsWorksheet['!cols'] = stepsColWidths;
+                    XLSX.utils.book_append_sheet(workbook, stepsWorksheet, 'Funnel Steps');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Funnel Steps sheet: ${allSteps.length} steps`);
+                }
+
+                // Create Funnel Page Elements sheet
+                if (allElementCounts.length > 0) {
+                    console.log('[Snapshot Exporter] Creating Funnel Page Elements sheet...');
+                    sendProgressUpdate(48, `Creating Funnel Page Elements sheet...`);
+                    const elementsSheetData = convertAssetTypeToArray(allElementCounts);
+                    const elementsWorksheet = XLSX.utils.aoa_to_sheet(elementsSheetData);
+                    const elementsColWidths = elementsSheetData[0].map(() => ({ wch: 15 }));
+                    elementsWorksheet['!cols'] = elementsColWidths;
+                    XLSX.utils.book_append_sheet(workbook, elementsWorksheet, 'Funnel Page Elements');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Funnel Page Elements sheet: ${allElementCounts.length} pages`);
+                }
             }
             // Special handling for Calendars - enrich with full data
             else if (assetType.key === 'calendars' && locationId) {
@@ -405,6 +448,20 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                     sheetsCreated++;
                     console.log(`[Snapshot Exporter] Created Calendar Configuration sheet`);
                 }
+
+                // Also create a Calendar Groups sheet
+                console.log('[Snapshot Exporter] Creating Calendar Groups sheet...');
+                sendProgressUpdate(53, `Extracting calendar groups...`);
+                const calendarGroups = await enrichCalendarGroups(locationId);
+                if (calendarGroups && calendarGroups.length > 0) {
+                    const groupsSheetData = convertAssetTypeToArray(calendarGroups);
+                    const groupsWorksheet = XLSX.utils.aoa_to_sheet(groupsSheetData);
+                    const groupsColWidths = groupsSheetData[0].map(() => ({ wch: 20 }));
+                    groupsWorksheet['!cols'] = groupsColWidths;
+                    XLSX.utils.book_append_sheet(workbook, groupsWorksheet, 'Calendar Groups');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Calendar Groups sheet: ${calendarGroups.length} groups`);
+                }
             }
             // Special handling for Pipelines - enrich with full data
             else if (assetType.key === 'pipelines' && locationId) {
@@ -425,7 +482,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 // Also create a detailed Pipeline Stages sheet
                 console.log('[Snapshot Exporter] Creating Pipeline Stages sheet...');
                 sendProgressUpdate(57, `Extracting pipeline stages...`);
-                const pipelineStages = await extractPipelineStages(assets, locationId);
+                const pipelineStages = extractPipelineStages(enrichedPipelines);
                 if (pipelineStages && pipelineStages.length > 0) {
                     const stagesSheetData = convertAssetTypeToArray(pipelineStages);
                     const stagesWorksheet = XLSX.utils.aoa_to_sheet(stagesSheetData);
@@ -451,6 +508,20 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Email Templates');
                 sheetsCreated++;
                 console.log(`[Snapshot Exporter] Created enriched sheet for Email Templates: ${assets.length} items`);
+
+                // Also create an Email Builder sheet
+                console.log('[Snapshot Exporter] Creating Email Builder sheet...');
+                sendProgressUpdate(62, `Extracting email builder templates...`);
+                const emailBuilderTemplates = await enrichEmailBuilderTemplates(locationId);
+                if (emailBuilderTemplates && emailBuilderTemplates.length > 0) {
+                    const builderSheetData = convertAssetTypeToArray(emailBuilderTemplates);
+                    const builderWorksheet = XLSX.utils.aoa_to_sheet(builderSheetData);
+                    const builderColWidths = builderSheetData[0].map(() => ({ wch: 20 }));
+                    builderWorksheet['!cols'] = builderColWidths;
+                    XLSX.utils.book_append_sheet(workbook, builderWorksheet, 'Email Builder');
+                    sheetsCreated++;
+                    console.log(`[Snapshot Exporter] Created Email Builder sheet: ${emailBuilderTemplates.length} templates`);
+                }
             }
             // Special handling for Surveys - enrich with full data
             else if (assetType.key === 'surveys' && locationId) {
@@ -744,8 +815,31 @@ function convertAssetTypeToArray(assets) {
         });
     });
 
-    // Convert to array and sort
-    const headers = Array.from(allKeys).sort();
+    // Convert to array and sort, with 'id' and 'name' prioritized first
+    let headers = Array.from(allKeys);
+
+    // Check which priority fields exist
+    const hasId = headers.includes('id');
+    const hasName = headers.includes('name');
+    const has_Id = headers.includes('_id');
+
+    // Remove 'id', 'name', and '_id' from the array using filter to avoid index shifting issues
+    headers = headers.filter(h => h !== 'id' && h !== 'name' && h !== '_id');
+
+    // Sort remaining headers
+    headers.sort();
+
+    // Prepend 'id' and 'name' at the beginning
+    const priorityHeaders = [];
+    if (hasId || has_Id) {
+        // Prefer 'id' over '_id', but use whichever exists
+        priorityHeaders.push(hasId ? 'id' : '_id');
+    }
+    if (hasName) {
+        priorityHeaders.push('name');
+    }
+
+    headers = [...priorityHeaders, ...headers];
 
     // Add "Full Enrichment Data" as the last column
     headers.push('Full Enrichment Data');
@@ -1009,6 +1103,76 @@ function downloadCSV(csvContent, filename) {
         console.error('[Snapshot Exporter] Download failed:', error);
         throw error;
     }
+}
+
+/**
+ * Estimate export time based on asset counts
+ * @param {Object} snapshotData - The snapshot data containing all assets
+ * @returns {Object} - Estimated time in seconds and formatted string
+ */
+function estimateExportTime(snapshotData) {
+    // Base time in seconds
+    let estimatedSeconds = 10; // Base overhead for authentication, downloading, etc.
+
+    // Time estimates per asset type (in seconds per item)
+    const timePerAsset = {
+        'workflow': 2,          // Workflows with AI analysis take longer
+        'funnels': 15,          // Funnels are the slowest - multiple API calls per funnel, per page
+        'forms': 1,             // Forms need enrichment
+        'surveys': 0.5,
+        'calendars': 1,
+        'campaigns': 0.3,
+        'pipelines': 0.5,
+        'custom_fields': 0.1,
+        'custom_values': 0.1,
+        'tags': 0.1,
+        'text_templates': 0.2,
+        'email_templates': 0.2,
+        'links': 0.1,
+        'folders': 0.1,
+        'teams': 0.2,
+        'membership_offers': 0.3,
+        'membership_products': 0.3,
+        'triggers': 0.3,
+        'knowledge_bases': 0.5,
+        'quizzes': 0.5,
+        'dashboards': 0.5,
+        'custom_objects': 0.3,
+        'certificates': 0.2,
+        'review_settings': 0.2,
+        'conversation_ai': 0.5,
+        'social_planner': 0.3,
+        'sectionTemplates': 0.2
+    };
+
+    // Calculate time for each asset type
+    for (const [assetType, timePerItem] of Object.entries(timePerAsset)) {
+        const assets = snapshotData[assetType];
+        if (assets && assets.length > 0) {
+            estimatedSeconds += assets.length * timePerItem;
+        }
+    }
+
+    // Format the time string
+    let timeString = '';
+    if (estimatedSeconds < 60) {
+        timeString = `~${Math.ceil(estimatedSeconds)} seconds`;
+    } else if (estimatedSeconds < 3600) {
+        const minutes = Math.ceil(estimatedSeconds / 60);
+        timeString = `~${minutes} minute${minutes > 1 ? 's' : ''}`;
+    } else {
+        const hours = Math.floor(estimatedSeconds / 3600);
+        const minutes = Math.ceil((estimatedSeconds % 3600) / 60);
+        timeString = `~${hours} hour${hours > 1 ? 's' : ''}`;
+        if (minutes > 0) {
+            timeString += ` ${minutes} min`;
+        }
+    }
+
+    return {
+        seconds: estimatedSeconds,
+        formatted: timeString
+    };
 }
 
 /**
@@ -1310,12 +1474,12 @@ async function analyzeWorkflowWithAI(workflowData) {
         // Get OpenAI API key and AI settings from storage
         const result = await chrome.storage.local.get(['openaiApiKey', 'aiAnalysisEnabled']);
         const apiKey = result.openaiApiKey;
-        const aiEnabled = result.aiAnalysisEnabled !== false; // Default to true
+        const aiEnabled = result.aiAnalysisEnabled === true;
 
         if (!aiEnabled) {
             console.log('[AI Analysis] AI analysis disabled in settings');
             return {
-                description: 'AI analysis disabled',
+                description: '',
                 setupNotes: ''
             };
         }
@@ -1454,8 +1618,8 @@ async function enrichWorkflowsWithAI(workflows, companyId, snapshotId) {
     console.log(`[Workflow Enrichment] Enriching ${workflows.length} workflows`);
 
     // Check if AI is enabled
-    const aiSettings = await chrome.storage.local.get(['aiAnalysisEnabled']);
-    const aiEnabled = aiSettings.aiAnalysisEnabled !== false; // Default to true
+    const aiSettings = await chrome.storage.local.get(['aiAnalysisEnabled', 'openaiApiKey']);
+    const aiEnabled = aiSettings.aiAnalysisEnabled === true && aiSettings.openaiApiKey;
 
     if (aiEnabled) {
         console.log('[Workflow Enrichment] AI analysis enabled');
@@ -2143,7 +2307,9 @@ async function enrichForms(forms, locationId) {
         return forms;
     }
 
-    console.log(`[Form Enrichment] Enriching ${forms.length} forms`);
+    console.log(`[Form Enrichment] Using NEW services.leadconnectorhq.com endpoint`);
+    console.log(`[Form Enrichment] Enriching ${forms.length} forms with version history`);
+
     const enrichedForms = [];
 
     for (let i = 0; i < forms.length; i++) {
@@ -2154,31 +2320,78 @@ async function enrichForms(forms, locationId) {
         console.log(`[Form Enrichment] [${i + 1}/${forms.length}] Processing: ${formName}`);
 
         try {
-            const endpoint = `/forms/${locationId}/${formId}`;
+            // Use the new services endpoint for detailed form data
+            const endpoint = `/forms/${formId}`;
             await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullFormData = response.data;
+            const response = await window.ghlUtilsRevex.get(endpoint, 'services');
 
-            const totalFields = fullFormData.fields ? fullFormData.fields.length : 0;
+            if (!response || !response.data || !response.data.form) {
+                console.warn(`[Form Enrichment] [${i + 1}] No data returned from new endpoint for: ${formName}`);
+                enrichedForms.push(form);
+                continue;
+            }
+
+            const fullFormData = response.data.form;
+            const formData = fullFormData.formData || {};
+            const formConfig = formData.form || {};
+            const fields = formConfig.fields || [];
 
             const enrichedForm = {
                 ...form,
-                submissionType: fullFormData.submissionType || '',
-                submissionUrl: fullFormData.submissionUrl || '',
-                thankyouUrl: fullFormData.thankyouUrl || '',
-                pixelId: fullFormData.pixelId || '',
-                eventKey: fullFormData.eventKey || '',
-                totalFields: totalFields,
-                fieldTypes: fullFormData.fields ? extractFieldTypes(fullFormData.fields) : '',
-                isActive: fullFormData.isActive || false,
-                requiresPayment: fullFormData.requiresPayment || false,
+                productType: fullFormData.productType || '',
+                deleted: fullFormData.deleted || false,
+                version: fullFormData.version || 0,
+                dateAdded: fullFormData.dateAdded || '',
+                dateUpdated: fullFormData.dateUpdated || '',
+                updatedAt: fullFormData.updatedAt || '',
+
+                // Form configuration
+                autoResponder: formData.autoResponder || false,
+                emailNotifications: formData.emailNotifications || false,
+                enablePartialContactCreation: formData.enablePartialContactCreation || false,
+
+                // Branding
+                companyName: formConfig.company?.name || '',
+                companyLogoURL: formConfig.company?.logoURL || '',
+
+                // Form action settings
+                formActionType: formConfig.formAction?.actionType || '',
+                thankyouText: formConfig.formAction?.thankyouText || '',
+                redirectUrl: formConfig.formAction?.redirectUrl || '',
+                headerImageSrc: formConfig.formAction?.headerImageSrc || '',
+
+                // Fields
+                totalFields: fields.length,
+                fieldTypes: fields.map(f => f.type).join('; '),
+                requiredFields: fields.filter(f => f.required).length,
+
+                // Styling
+                currentThemeId: formConfig.currentThemeId || '',
+                backgroundColor: formConfig.style?.background || '',
+                bgImage: formConfig.style?.bgImage || '',
+
+                // Tracking
+                fbPixelId: formConfig.fbPixelId || '',
+                pixelId: formConfig.pixelId || '',
+
+                // Compliance
+                stickyContact: formConfig.stickyContact || false,
+                isGDPRCompliant: formConfig.isGDPRCompliant || false,
+
+                // Folder organization
+                parentFolderId: formData.parentFolderId || '',
+                parentFolderName: formData.parentFolderName || '',
+
+                // Download URL
+                formDataDownloadUrl: formData.formDataDownloadUrl || '',
+
                 fullEnrichmentData: fullFormData
             };
 
             enrichedForms.push(enrichedForm);
-            console.log(`[Form Enrichment] [${i + 1}] Enriched: ${totalFields} fields`);
+            console.log(`[Form Enrichment] [${i + 1}] ✅ Enriched with ${fields.length} fields from new endpoint`);
         } catch (error) {
-            console.error(`[Form Enrichment] [${i + 1}] Error:`, error);
+            console.error(`[Form Enrichment] [${i + 1}] ❌ Error:`, error);
             enrichedForms.push(form);
         }
     }
@@ -2187,16 +2400,126 @@ async function enrichForms(forms, locationId) {
 }
 
 /**
- * Enrich funnels with full details
+ * Fetch funnel page list with version history
+ */
+async function fetchFunnelPageList(funnelId, locationId) {
+    try {
+        const endpoint = `/funnels/page/list?funnelId=${funnelId}&locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const data = response.data;
+        return Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('[Funnel Enrichment] Error fetching page list:', error);
+        return [];
+    }
+}
+
+/**
+ * Fetch funnel step details
+ */
+async function fetchFunnelStepDetails(funnelId, locationId, stepId) {
+    try {
+        const endpoint = `/funnels/lookup/list?funnelId=${funnelId}&locationId=${locationId}&typeId=${stepId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        const data = response.data;
+        return data.data || [];
+    } catch (error) {
+        console.error('[Funnel Enrichment] Error fetching step details:', error);
+        return [];
+    }
+}
+
+/**
+ * Fetch funnel page builder details
+ */
+async function fetchFunnelPageBuilderData(pageId) {
+    try {
+        const endpoint = `/funnels/builder/page/data?pageId=${pageId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+        return response.data;
+    } catch (error) {
+        console.error('[Funnel Enrichment] Error fetching page builder data:', error);
+        return null;
+    }
+}
+
+/**
+ * Count elements in page builder data
+ */
+function countPageElements(builderData) {
+    if (!builderData || !builderData.sections) {
+        return {};
+    }
+
+    const counts = {
+        sections: 0,
+        rows: 0,
+        columns: 0,
+        elements: 0,
+        buttons: 0,
+        images: 0,
+        paragraphs: 0,
+        headings: 0,
+        subHeadings: 0,
+        dividers: 0,
+        calendars: 0,
+        faqs: 0,
+        customCode: 0,
+        forms: 0
+    };
+
+    const countElements = (obj) => {
+        if (!obj || typeof obj !== 'object') return;
+
+        if (obj.type === 'section') counts.sections++;
+        if (obj.type === 'row') counts.rows++;
+        if (obj.type === 'column') counts.columns++;
+        if (obj.type === 'element') {
+            counts.elements++;
+            if (obj.meta === 'button') counts.buttons++;
+            if (obj.meta === 'image') counts.images++;
+            if (obj.meta === 'paragraph') counts.paragraphs++;
+            if (obj.meta === 'heading') counts.headings++;
+            if (obj.meta === 'subHeading') counts.subHeadings++;
+            if (obj.meta === 'divider') counts.dividers++;
+            if (obj.meta === 'calendar') counts.calendars++;
+            if (obj.meta === 'faq') counts.faqs++;
+            if (obj.meta === 'customCode') counts.customCode++;
+            if (obj.meta === 'form') counts.forms++;
+        }
+
+        if (Array.isArray(obj)) {
+            obj.forEach(item => countElements(item));
+        } else {
+            Object.values(obj).forEach(value => {
+                if (typeof value === 'object') {
+                    countElements(value);
+                }
+            });
+        }
+    };
+
+    countElements(builderData.sections);
+    return counts;
+}
+
+/**
+ * Enrich funnels with full details using 3-step enrichment process
  */
 async function enrichFunnels(funnels, locationId) {
     if (!funnels || funnels.length === 0 || !locationId) {
         console.log('[Funnel Enrichment] No funnels to enrich or missing locationId');
-        return funnels;
+        return { enrichedFunnels: funnels, allPages: [], allSteps: [], allElementCounts: [] };
     }
 
-    console.log(`[Funnel Enrichment] Enriching ${funnels.length} funnels`);
+    console.log(`[Funnel Enrichment] Enriching ${funnels.length} funnels with comprehensive data`);
     const enrichedFunnels = [];
+    const allPages = [];
+    const allSteps = [];
+    const allElementCounts = [];
 
     for (let i = 0; i < funnels.length; i++) {
         const funnel = funnels[i];
@@ -2204,35 +2527,135 @@ async function enrichFunnels(funnels, locationId) {
         const funnelName = funnel.name || 'Unnamed Funnel';
 
         console.log(`[Funnel Enrichment] [${i + 1}/${funnels.length}] Processing: ${funnelName}`);
+        sendProgressUpdate(45, `Funnel ${i + 1}/${funnels.length}: "${funnelName}" - Fetching pages...`);
 
         try {
-            const endpoint = `/funnels/${locationId}/${funnelId}`;
-            await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullFunnelData = response.data;
+            // Step 1: Fetch page list with version history
+            console.log(`[Funnel Enrichment] [${i + 1}] Fetching page list...`);
+            const pageList = await fetchFunnelPageList(funnelId, locationId);
+            console.log(`[Funnel Enrichment] [${i + 1}] Found ${pageList.length} pages`);
+            sendProgressUpdate(46, `Funnel ${i + 1}/${funnels.length}: "${funnelName}" - Found ${pageList.length} pages`);
 
+            // Step 2: Process each page
+            let totalVersions = 0;
+            let livePages = 0;
+            let draftPages = 0;
+            let deletedPages = 0;
+            const stepIds = new Set();
+
+            for (let pageIndex = 0; pageIndex < pageList.length; pageIndex++) {
+                const page = pageList[pageIndex];
+                const pageId = page._id;
+                const pageName = page.name || 'Unnamed Page';
+
+                // Collect step IDs
+                if (page.stepId) {
+                    stepIds.add(page.stepId);
+                }
+
+                // Count versions
+                if (page.versionHistory) {
+                    totalVersions += page.versionHistory.length;
+                    const liveVersion = page.versionHistory.find(v => v.pageType === 'live');
+                    if (liveVersion) livePages++;
+                    const draftVersion = page.versionHistory.find(v => v.pageType === 'draft');
+                    if (draftVersion) draftPages++;
+                }
+
+                if (page.deleted) {
+                    deletedPages++;
+                }
+
+                // Fetch page builder data for element counts
+                console.log(`[Funnel Enrichment] [${i + 1}] Fetching builder data for page: ${pageName}`);
+                sendProgressUpdate(47, `Funnel ${i + 1}/${funnels.length} > Page ${pageIndex + 1}/${pageList.length}: "${pageName}"`);
+                const builderData = await fetchFunnelPageBuilderData(pageId);
+                const elementCounts = countPageElements(builderData);
+
+                // Add to pages collection
+                allPages.push({
+                    funnelId: funnelId,
+                    funnelName: funnelName,
+                    pageId: pageId,
+                    pageName: pageName,
+                    pageUrl: page.url || '',
+                    stepId: page.stepId || '',
+                    deleted: page.deleted || false,
+                    dateAdded: page.dateAdded || '',
+                    dateUpdated: page.dateUpdated || '',
+                    versionCount: page.versionHistory ? page.versionHistory.length : 0,
+                    templateType: page.templateType || '',
+                    seoTitle: page.meta?.title || '',
+                    seoDescription: page.meta?.description || '',
+                    seoAuthor: page.meta?.author || '',
+                    seoKeywords: page.meta?.keywords || '',
+                    seoLanguage: page.meta?.language || '',
+                    seoImageUrl: page.meta?.imageUrl || '',
+                    previewSnapshot: page.previewSnapshot || '',
+                    ...elementCounts
+                });
+
+                // Add element counts
+                if (Object.keys(elementCounts).length > 0) {
+                    allElementCounts.push({
+                        funnelId: funnelId,
+                        funnelName: funnelName,
+                        pageId: pageId,
+                        pageName: pageName,
+                        ...elementCounts
+                    });
+                }
+            }
+
+            // Step 3: Fetch step details for all unique step IDs
+            console.log(`[Funnel Enrichment] [${i + 1}] Fetching details for ${stepIds.size} steps...`);
+            sendProgressUpdate(48, `Funnel ${i + 1}/${funnels.length}: Fetching ${stepIds.size} step details...`);
+            let stepCount = 0;
+            for (const stepId of stepIds) {
+                stepCount++;
+                sendProgressUpdate(48, `Funnel ${i + 1}/${funnels.length}: Step ${stepCount}/${stepIds.size}`);
+                const stepDetails = await fetchFunnelStepDetails(funnelId, locationId, stepId);
+                for (const step of stepDetails) {
+                    allSteps.push({
+                        funnelId: funnelId,
+                        funnelName: funnelName,
+                        stepId: step.typeId || stepId,
+                        stepInternalId: step._id || '',
+                        domain: step.domain || '',
+                        path: step.path || '',
+                        pathLowercase: step.pathLowercase || '',
+                        type: step.type || '',
+                        deleted: step.deleted || false,
+                        dateAdded: step.dateAdded || '',
+                        dateUpdated: step.dateUpdated || ''
+                    });
+                }
+            }
+
+            // Create enriched funnel object
             const enrichedFunnel = {
                 ...funnel,
-                domain: fullFunnelData.domain || '',
-                customDomain: fullFunnelData.customDomain || '',
-                trackingCode: fullFunnelData.trackingCode || '',
-                pageCount: fullFunnelData.pages ? fullFunnelData.pages.length : 0,
-                pages: fullFunnelData.pages ? fullFunnelData.pages.map(p => p.name || p.title).join('; ') : '',
-                seoTitle: fullFunnelData.seoTitle || '',
-                seoDescription: fullFunnelData.seoDescription || '',
-                faviconUrl: fullFunnelData.faviconUrl || '',
-                fullEnrichmentData: fullFunnelData
+                pageCount: pageList.length,
+                livePageCount: livePages,
+                draftPageCount: draftPages,
+                deletedPageCount: deletedPages,
+                totalVersions: totalVersions,
+                stepCount: stepIds.size,
+                pages: pageList.map(p => p.name || p.title).filter(Boolean).join('; ')
             };
 
             enrichedFunnels.push(enrichedFunnel);
-            console.log(`[Funnel Enrichment] [${i + 1}] Enriched: ${enrichedFunnel.pageCount} pages`);
+            console.log(`[Funnel Enrichment] [${i + 1}] ✅ Enriched: ${pageList.length} pages, ${stepIds.size} steps, ${totalVersions} versions`);
+            sendProgressUpdate(49, `Funnel ${i + 1}/${funnels.length}: "${funnelName}" - Complete (${pageList.length} pages, ${stepIds.size} steps)`);
         } catch (error) {
             console.error(`[Funnel Enrichment] [${i + 1}] Error:`, error);
+            sendProgressUpdate(49, `Funnel ${i + 1}/${funnels.length}: "${funnelName}" - Error occurred, using basic data`);
             enrichedFunnels.push(funnel);
         }
     }
 
-    return enrichedFunnels;
+    sendProgressUpdate(50, `All ${funnels.length} funnels processed successfully`);
+    return { enrichedFunnels, allPages, allSteps, allElementCounts };
 }
 
 /**
@@ -2244,52 +2667,144 @@ async function enrichCalendars(calendars, locationId) {
         return calendars;
     }
 
-    console.log(`[Calendar Enrichment] Enriching ${calendars.length} calendars`);
-    const enrichedCalendars = [];
+    console.log(`[Calendar Enrichment] Using NEW enrichment endpoint`);
+    console.log(`[Calendar Enrichment] Fetching all calendars for location: ${locationId}`);
 
-    for (let i = 0; i < calendars.length; i++) {
-        const calendar = calendars[i];
-        const calendarId = calendar._id || calendar.id;
-        const calendarName = calendar.name || 'Unnamed Calendar';
+    try {
+        // Use the new endpoint to get all calendars at once with full details
+        const endpoint = `/calendars/?locationId=${locationId}&showThirdParty=false`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
 
-        console.log(`[Calendar Enrichment] [${i + 1}/${calendars.length}] Processing: ${calendarName}`);
-
-        try {
-            const endpoint = `/calendars/${locationId}/${calendarId}`;
-            await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullCalendarData = response.data;
-
-            const enrichedCalendar = {
-                ...calendar,
-                slug: fullCalendarData.slug || '',
-                widgetSlug: fullCalendarData.widgetSlug || '',
-                appointmentTitle: fullCalendarData.appointmentTitle || '',
-                description: fullCalendarData.description || '',
-                eventType: fullCalendarData.eventType || '',
-                eventColor: fullCalendarData.eventColor || '',
-                meetingLocation: fullCalendarData.meetingLocation || '',
-                slotDuration: fullCalendarData.slotDuration || '',
-                slotInterval: fullCalendarData.slotInterval || '',
-                slotBuffer: fullCalendarData.slotBuffer || '',
-                allowReschedule: fullCalendarData.allowReschedule || false,
-                allowCancellation: fullCalendarData.allowCancellation || false,
-                googleMeetIntegration: fullCalendarData.conferencingProvider === 'google_meet',
-                zoomIntegration: fullCalendarData.conferencingProvider === 'zoom',
-                conferencingProvider: fullCalendarData.conferencingProvider || '',
-                isActive: fullCalendarData.isActive !== false,
-                fullEnrichmentData: fullCalendarData
-            };
-
-            enrichedCalendars.push(enrichedCalendar);
-            console.log(`[Calendar Enrichment] [${i + 1}] Enriched: ${calendarName}`);
-        } catch (error) {
-            console.error(`[Calendar Enrichment] [${i + 1}] Error:`, error);
-            enrichedCalendars.push(calendar);
+        if (!response || !response.data || !response.data.calendars) {
+            console.warn('[Calendar Enrichment] No calendar data returned from new endpoint, falling back to original data');
+            return calendars;
         }
-    }
 
-    return enrichedCalendars;
+        const calendarsFromAPI = response.data.calendars;
+        console.log(`[Calendar Enrichment] ✅ Retrieved ${calendarsFromAPI.length} calendars with full details from new endpoint`);
+
+        const enrichedCalendars = [];
+
+        // Match the snapshot calendars with the enriched data
+        for (let i = 0; i < calendars.length; i++) {
+            const calendar = calendars[i];
+            const calendarId = calendar._id || calendar.id;
+            const calendarName = calendar.name || 'Unnamed Calendar';
+
+            console.log(`[Calendar Enrichment] [${i + 1}/${calendars.length}] Mapping: ${calendarName}`);
+
+            // Find matching calendar from API response
+            const apiCalendar = calendarsFromAPI.find(c => c.id === calendarId);
+
+            if (apiCalendar) {
+                const teamMembers = apiCalendar.teamMembers || [];
+                const teamMemberCount = teamMembers.length;
+                const teamMemberNames = teamMembers.map(tm => tm.userId).join('; ');
+
+                const enrichedCalendar = {
+                    ...calendar,
+                    calendarType: apiCalendar.calendarType || '',
+                    eventType: apiCalendar.eventType || '',
+                    slug: apiCalendar.slug || '',
+                    widgetSlug: apiCalendar.widgetSlug || '',
+                    description: apiCalendar.description || '',
+                    dateAdded: apiCalendar.dateAdded || '',
+                    dateUpdated: apiCalendar.dateUpdated || '',
+                    deleted: apiCalendar.deleted || false,
+                    groupId: apiCalendar.groupId || '',
+                    isActive: apiCalendar.isActive !== false,
+                    version: apiCalendar.version || '',
+                    calendarCoverImage: apiCalendar.calendarCoverImage || '',
+
+                    // Slot configuration
+                    slotDuration: apiCalendar.slotDuration || '',
+                    slotDurationUnit: apiCalendar.slotDurationUnit || '',
+                    slotInterval: apiCalendar.slotInterval || '',
+                    slotIntervalUnit: apiCalendar.slotIntervalUnit || '',
+                    slotBufferUnit: apiCalendar.slotBufferUnit || '',
+                    preBufferUnit: apiCalendar.preBufferUnit || '',
+
+                    // Appointment limits
+                    appointmentPerSlot: apiCalendar.appoinmentPerSlot || '', // Note: API has typo 'appoinment'
+                    appointmentPerDay: apiCalendar.appoinmentPerDay || '',
+
+                    // Features
+                    enableOfficeHours: apiCalendar.enableOfficeHours || false,
+                    enableRecurring: apiCalendar.enableRecurring || false,
+                    enableConsentCheck: apiCalendar.enableConsentCheck || false,
+                    enableGuests: apiCalendar.enableGuests || false,
+                    enableChargeGuests: apiCalendar.enableChargeGuests || false,
+                    enableStaffSelection: apiCalendar.enableStaffSelection || false,
+                    enableSameUserAssignment: apiCalendar.enableSameUserAssignment || false,
+                    enableSameUserAssignmentForReschedule: apiCalendar.enableSameUserAssignmentForReschedule || false,
+
+                    // Booking rules
+                    allowBookingAfter: apiCalendar.allowBookingAfter || '',
+                    allowBookingAfterUnit: apiCalendar.allowBookingAfterUnit || '',
+                    allowBookingForUnit: apiCalendar.allowBookingForUnit || '',
+                    allowCancellation: apiCalendar.allowCancellation || false,
+                    allowReschedule: apiCalendar.allowReschedule || false,
+
+                    // Auto settings
+                    autoConfirm: apiCalendar.autoConfirm || false,
+                    stickyContact: apiCalendar.stickyContact || false,
+                    shouldAssignContactToTeamMember: apiCalendar.shouldAssignContactToTeamMember || false,
+                    shouldSkipAssigningContactForExisting: apiCalendar.shouldSkipAssigningContactForExisting || false,
+
+                    // Event details
+                    eventTitle: apiCalendar.eventTitle || '',
+                    eventColor: apiCalendar.eventColor || '',
+                    notes: apiCalendar.notes || '',
+                    consentLabel: apiCalendar.consentLabel || '',
+
+                    // Form integration
+                    formId: apiCalendar.formId || '',
+                    formSubmitType: apiCalendar.formSubmitType || '',
+                    formSubmitThanksMessage: apiCalendar.formSubmitThanksMessage || '',
+                    formSubmitRedirectUrl: apiCalendar.formSubmitRedirectUrl || '',
+
+                    // Team members
+                    teamMemberCount: teamMemberCount,
+                    teamMembers: teamMemberNames,
+
+                    // Widget configuration
+                    widgetType: apiCalendar.widgetType || '',
+                    primaryColor: apiCalendar.widgetConfig?.primarySettings?.primaryColor || '',
+                    backgroundColor: apiCalendar.widgetConfig?.primarySettings?.backgroundColor || '',
+                    buttonText: apiCalendar.widgetConfig?.primarySettings?.buttonText || '',
+
+                    // Tracking
+                    pixelId: apiCalendar.pixelId || '',
+                    fbPixelId: apiCalendar.fbPixelId || '',
+
+                    // Payment
+                    isLivePaymentMode: apiCalendar.isLivePaymentMode || false,
+
+                    // Audit trail
+                    createdBy: apiCalendar.createdBy?.userId || '',
+                    createdByChannel: apiCalendar.createdBy?.channel || '',
+                    createdBySource: apiCalendar.createdBy?.source || '',
+                    lastUpdatedBy: apiCalendar.lastUpdatedBy?.userId || '',
+                    lastUpdatedByChannel: apiCalendar.lastUpdatedBy?.channel || '',
+
+                    fullEnrichmentData: apiCalendar
+                };
+
+                enrichedCalendars.push(enrichedCalendar);
+                console.log(`[Calendar Enrichment] [${i + 1}] ✅ Enriched with ${teamMemberCount} team members from new endpoint`);
+            } else {
+                console.warn(`[Calendar Enrichment] [${i + 1}] ⚠️ No matching data found for: ${calendarName}`);
+                enrichedCalendars.push(calendar);
+            }
+        }
+
+        return enrichedCalendars;
+    } catch (error) {
+        console.error('[Calendar Enrichment] ❌ Error using new endpoint:', error);
+        console.log('[Calendar Enrichment] Returning original calendar data');
+        return calendars;
+    }
 }
 
 /**
@@ -2326,6 +2841,49 @@ async function extractCalendarConfiguration(locationId) {
 }
 
 /**
+ * Fetch and enrich calendar groups
+ */
+async function enrichCalendarGroups(locationId) {
+    if (!locationId) {
+        console.log('[Calendar Groups] No locationId provided');
+        return [];
+    }
+
+    console.log('[Calendar Groups] Fetching calendar groups for location:', locationId);
+
+    try {
+        const endpoint = `/calendars/groups?locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+
+        if (!response || !response.data || !response.data.groups) {
+            console.warn('[Calendar Groups] No groups data returned from endpoint');
+            return [];
+        }
+
+        const groups = response.data.groups;
+        console.log(`[Calendar Groups] ✅ Retrieved ${groups.length} calendar groups from new endpoint`);
+
+        const enrichedGroups = groups.map(group => ({
+            id: group.id || '',
+            locationId: group.locationId || locationId,
+            name: group.name || '',
+            description: group.description || '',
+            slug: group.slug || '',
+            isActive: group.isActive !== false,
+            dateAdded: group.dateAdded || '',
+            dateUpdated: group.dateUpdated || '',
+            fullEnrichmentData: group
+        }));
+
+        return enrichedGroups;
+    } catch (error) {
+        console.error('[Calendar Groups] ❌ Error fetching calendar groups:', error);
+        return [];
+    }
+}
+
+/**
  * Enrich pipelines with stages and details
  */
 async function enrichPipelines(pipelines, locationId) {
@@ -2334,98 +2892,121 @@ async function enrichPipelines(pipelines, locationId) {
         return pipelines;
     }
 
-    console.log(`[Pipeline Enrichment] Enriching ${pipelines.length} pipelines`);
-    const enrichedPipelines = [];
+    console.log(`[Pipeline Enrichment] Using NEW enrichment endpoint`);
+    console.log(`[Pipeline Enrichment] Fetching all pipelines for location: ${locationId}`);
 
-    for (let i = 0; i < pipelines.length; i++) {
-        const pipeline = pipelines[i];
-        const pipelineId = pipeline._id || pipeline.id;
-        const pipelineName = pipeline.name || 'Unnamed Pipeline';
+    try {
+        // Use the new endpoint to get all pipelines at once with full details
+        const endpoint = `/opportunities/pipelines?locationId=${locationId}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
 
-        console.log(`[Pipeline Enrichment] [${i + 1}/${pipelines.length}] Processing: ${pipelineName}`);
-
-        try {
-            const endpoint = `/opportunities/pipelines/${locationId}/${pipelineId}`;
-            await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullPipelineData = response.data;
-
-            const stages = fullPipelineData.stages || [];
-            const stageNames = stages.map(s => s.name).join('; ');
-
-            const enrichedPipeline = {
-                ...pipeline,
-                stageCount: stages.length,
-                stages: stageNames,
-                stagesDetailed: stages, // Include full stage details
-                firstStage: stages.length > 0 ? stages[0].name : '',
-                lastStage: stages.length > 0 ? stages[stages.length - 1].name : '',
-                showInFunnels: fullPipelineData.showInFunnels || false,
-                showInContacts: fullPipelineData.showInContacts || false,
-                fullEnrichmentData: fullPipelineData
-            };
-
-            enrichedPipelines.push(enrichedPipeline);
-            console.log(`[Pipeline Enrichment] [${i + 1}] Enriched: ${stages.length} stages`);
-        } catch (error) {
-            console.error(`[Pipeline Enrichment] [${i + 1}] Error:`, error);
-            enrichedPipelines.push(pipeline);
+        if (!response || !response.data || !response.data.pipelines) {
+            console.warn('[Pipeline Enrichment] No pipeline data returned from new endpoint, falling back to original data');
+            return pipelines;
         }
-    }
 
-    return enrichedPipelines;
+        const pipelinesFromAPI = response.data.pipelines;
+        console.log(`[Pipeline Enrichment] ✅ Retrieved ${pipelinesFromAPI.length} pipelines with full details from new endpoint`);
+
+        const enrichedPipelines = [];
+
+        // Match the snapshot pipelines with the enriched data
+        for (let i = 0; i < pipelines.length; i++) {
+            const pipeline = pipelines[i];
+            const pipelineId = pipeline._id || pipeline.id;
+            const pipelineName = pipeline.name || 'Unnamed Pipeline';
+
+            console.log(`[Pipeline Enrichment] [${i + 1}/${pipelines.length}] Mapping: ${pipelineName}`);
+
+            // Find matching pipeline from API response
+            const apiPipeline = pipelinesFromAPI.find(p => p.id === pipelineId);
+
+            if (apiPipeline) {
+                const stages = apiPipeline.stages || [];
+                const stageNames = stages.map(s => s.name).join('; ');
+
+                const enrichedPipeline = {
+                    ...pipeline,
+                    originId: apiPipeline.originId || '',
+                    dateAdded: apiPipeline.dateAdded || '',
+                    dateUpdated: apiPipeline.dateUpdated || '',
+                    showInFunnel: apiPipeline.showInFunnel !== false,
+                    showInPieChart: apiPipeline.showInPieChart !== false,
+                    stageCount: stages.length,
+                    stages: stageNames,
+                    stagesDetailed: stages.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        originId: s.originId || '',
+                        position: s.position,
+                        showInFunnel: s.showInFunnel !== false,
+                        showInPieChart: s.showInPieChart !== false
+                    })),
+                    firstStage: stages.length > 0 ? stages[0].name : '',
+                    lastStage: stages.length > 0 ? stages[stages.length - 1].name : '',
+                    fullEnrichmentData: apiPipeline
+                };
+
+                enrichedPipelines.push(enrichedPipeline);
+                console.log(`[Pipeline Enrichment] [${i + 1}] ✅ Enriched with ${stages.length} stages from new endpoint`);
+            } else {
+                console.warn(`[Pipeline Enrichment] [${i + 1}] ⚠️ No matching data found for: ${pipelineName}`);
+                enrichedPipelines.push(pipeline);
+            }
+        }
+
+        return enrichedPipelines;
+    } catch (error) {
+        console.error('[Pipeline Enrichment] ❌ Error using new endpoint:', error);
+        console.log('[Pipeline Enrichment] Returning original pipeline data');
+        return pipelines;
+    }
 }
 
 /**
  * Extract all pipeline stages into a flat list for detailed stage worksheet
+ * Uses already-enriched pipeline data (no additional API calls)
  */
-async function extractPipelineStages(pipelines, locationId) {
-    if (!pipelines || pipelines.length === 0 || !locationId) {
+function extractPipelineStages(enrichedPipelines) {
+    if (!enrichedPipelines || enrichedPipelines.length === 0) {
         console.log('[Pipeline Stages] No pipelines to extract stages from');
         return [];
     }
 
-    console.log(`[Pipeline Stages] Extracting stages from ${pipelines.length} pipelines`);
+    console.log(`[Pipeline Stages] Extracting stages from ${enrichedPipelines.length} enriched pipelines (no API calls needed)`);
     const allStages = [];
 
-    for (let i = 0; i < pipelines.length; i++) {
-        const pipeline = pipelines[i];
+    for (let i = 0; i < enrichedPipelines.length; i++) {
+        const pipeline = enrichedPipelines[i];
         const pipelineId = pipeline._id || pipeline.id;
         const pipelineName = pipeline.name || 'Unnamed Pipeline';
 
-        console.log(`[Pipeline Stages] [${i + 1}/${pipelines.length}] Extracting from: ${pipelineName}`);
+        console.log(`[Pipeline Stages] [${i + 1}/${enrichedPipelines.length}] Extracting from: ${pipelineName}`);
 
-        try {
-            const endpoint = `/opportunities/pipelines/${locationId}/${pipelineId}`;
-            await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullPipelineData = response.data;
+        // Get stages from already-enriched data
+        const stages = pipeline.stagesDetailed || [];
 
-            const stages = fullPipelineData.stages || [];
-
-            // Add each stage with pipeline context
-            stages.forEach((stage) => {
-                allStages.push({
-                    pipelineId: pipelineId,
-                    pipelineName: pipelineName,
-                    stageId: stage.id,
-                    stageName: stage.name,
-                    stagePosition: stage.position,
-                    originId: stage.originId || '',
-                    showInFunnel: stage.showInFunnel !== false,
-                    showInPieChart: stage.showInPieChart !== false,
-                    dateAdded: fullPipelineData.dateAdded || '',
-                    dateUpdated: fullPipelineData.dateUpdated || ''
-                });
+        // Add each stage with pipeline context
+        stages.forEach((stage) => {
+            allStages.push({
+                pipelineId: pipelineId,
+                pipelineName: pipelineName,
+                stageId: stage.id,
+                stageName: stage.name,
+                stagePosition: stage.position,
+                originId: stage.originId || '',
+                showInFunnel: stage.showInFunnel !== false,
+                showInPieChart: stage.showInPieChart !== false,
+                dateAdded: pipeline.dateAdded || '',
+                dateUpdated: pipeline.dateUpdated || ''
             });
+        });
 
-            console.log(`[Pipeline Stages] [${i + 1}] Extracted: ${stages.length} stages`);
-        } catch (error) {
-            console.error(`[Pipeline Stages] [${i + 1}] Error:`, error);
-        }
+        console.log(`[Pipeline Stages] [${i + 1}] Extracted: ${stages.length} stages from enriched data`);
     }
 
-    console.log(`[Pipeline Stages] Total stages extracted: ${allStages.length}`);
+    console.log(`[Pipeline Stages] ✅ Total stages extracted: ${allStages.length} (0 API calls)`);
     return allStages;
 }
 
@@ -2433,52 +3014,188 @@ async function extractPipelineStages(pipelines, locationId) {
  * Enrich email templates with details
  */
 async function enrichEmailTemplates(templates, locationId) {
-    if (!templates || templates.length === 0 || !locationId) {
-        console.log('[Email Template Enrichment] No templates to enrich or missing locationId');
-        return templates;
+    if (!locationId) {
+        console.log('[Email Template Enrichment] No locationId provided');
+        return templates || [];
     }
 
-    console.log(`[Email Template Enrichment] Enriching ${templates.length} templates`);
-    const enrichedTemplates = [];
+    console.log('[Email Template Enrichment] Fetching email templates from Email Builder endpoint');
 
-    for (let i = 0; i < templates.length; i++) {
-        const template = templates[i];
-        const templateId = template._id || template.id;
-        const templateName = template.name || 'Unnamed Template';
+    try {
+        // Fetch all templates with pagination using the Email Builder endpoint
+        const allTemplates = [];
+        let offset = 0;
+        const limit = 50;
+        let hasMore = true;
 
-        console.log(`[Email Template Enrichment] [${i + 1}/${templates.length}] Processing: ${templateName}`);
-
-        try {
-            const endpoint = `/templates/${locationId}/${templateId}`;
+        while (hasMore) {
+            const endpoint = `/emails/builder?locationId=${locationId}&limit=${limit}&sortByDate=desc&archived=false&offset=${offset}&name=&templatesOnly=false`;
             await window.ghlUtilsRevex.waitForReady();
             const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullTemplateData = response.data;
 
-            // Extract custom fields from template content
-            const htmlContent = fullTemplateData.html || fullTemplateData.body || '';
-            const customFields = extractCustomFieldsFromContent(htmlContent);
+            if (!response || !response.data) {
+                console.warn('[Email Template Enrichment] No data returned from endpoint');
+                break;
+            }
 
-            const enrichedTemplate = {
-                ...template,
-                subject: fullTemplateData.subject || '',
-                fromName: fullTemplateData.fromName || '',
-                fromEmail: fullTemplateData.fromEmail || '',
-                replyTo: fullTemplateData.replyTo || '',
-                customFieldsUsed: customFields,
-                hasAttachments: fullTemplateData.attachments && fullTemplateData.attachments.length > 0,
-                attachmentCount: fullTemplateData.attachments ? fullTemplateData.attachments.length : 0,
-                fullEnrichmentData: fullTemplateData
-            };
+            // Response structure: { builders: [...], total: [{total: N}], traceId: "..." }
+            const builders = response.data.builders || [];
+            const totalCount = response.data.total?.[0]?.total || 0;
 
-            enrichedTemplates.push(enrichedTemplate);
-            console.log(`[Email Template Enrichment] [${i + 1}] Enriched: ${templateName}`);
-        } catch (error) {
-            console.error(`[Email Template Enrichment] [${i + 1}] Error:`, error);
-            enrichedTemplates.push(template);
+            console.log(`[Email Template Enrichment] Retrieved ${builders.length} templates (offset: ${offset}, total: ${totalCount})`);
+
+            allTemplates.push(...builders);
+            offset += limit;
+            hasMore = builders.length === limit && offset < totalCount;
         }
+
+        console.log(`[Email Template Enrichment] ✅ Retrieved ${allTemplates.length} email templates`);
+
+        // Map fields from Email Builder response structure
+        const enrichedTemplates = allTemplates.map(template => ({
+            id: template.id || '',
+            locationId: locationId,
+            name: template.name || '',
+            updatedBy: template.updatedBy || '',
+            isPlainText: template.isPlainText || false,
+            lastUpdated: template.lastUpdated || '',
+            dateAdded: template.dateAdded || '',
+            previewUrl: template.previewUrl || '',
+            version: template.version || '',
+            templateType: template.templateType || '',
+            fullEnrichmentData: template
+        }));
+
+        return enrichedTemplates;
+    } catch (error) {
+        console.error('[Email Template Enrichment] ❌ Error fetching email templates:', error);
+        return templates || [];
+    }
+}
+
+/**
+ * Fetch and enrich email builder templates
+ */
+async function enrichEmailBuilderTemplates(locationId) {
+    if (!locationId) {
+        console.log('[Email Builder] No locationId provided');
+        return [];
     }
 
-    return enrichedTemplates;
+    console.log('[Email Builder] Fetching email builder templates for location:', locationId);
+
+    try {
+        // Fetch all templates with pagination
+        const allTemplates = [];
+        let offset = 0;
+        const limit = 50;
+        let hasMore = true;
+
+        while (hasMore) {
+            const endpoint = `/emails/builder?locationId=${locationId}&limit=${limit}&sortByDate=desc&archived=false&offset=${offset}&name=&templatesOnly=false`;
+            await window.ghlUtilsRevex.waitForReady();
+            const response = await window.ghlUtilsRevex.get(endpoint);
+
+            if (!response || !response.data) {
+                console.warn('[Email Builder] No email builder data returned from endpoint');
+                break;
+            }
+
+            // Response structure: { builders: [...], total: [...] }
+            const builders = response.data.builders || [];
+            const totalCount = response.data.total?.[0]?.total || 0;
+
+            console.log(`[Email Builder] Retrieved ${builders.length} templates (offset: ${offset}, total: ${totalCount})`);
+
+            allTemplates.push(...builders);
+            offset += limit;
+            hasMore = builders.length === limit && offset < totalCount;
+        }
+
+        console.log(`[Email Builder] ✅ Retrieved ${allTemplates.length} email builder templates from new endpoint`);
+
+        const enrichedTemplates = allTemplates.map(template => ({
+            id: template.id || '',
+            locationId: locationId,
+            name: template.name || '',
+            updatedBy: template.updatedBy || '',
+            isPlainText: template.isPlainText || false,
+            lastUpdated: template.lastUpdated || '',
+            dateAdded: template.dateAdded || '',
+            previewUrl: template.previewUrl || '',
+            version: template.version || '',
+            templateType: template.templateType || '',
+            fullEnrichmentData: template
+        }));
+
+        return enrichedTemplates;
+    } catch (error) {
+        console.error('[Email Builder] ❌ Error fetching email builder templates:', error);
+        return [];
+    }
+}
+
+/**
+ * Fetch specific email builder template data with full enrichment
+ */
+async function enrichEmailBuilderTemplateDetails(locationId, templateId, isInternal = false) {
+    if (!locationId || !templateId) {
+        console.log('[Email Builder Details] Missing locationId or templateId');
+        return null;
+    }
+
+    console.log(`[Email Builder Details] Fetching template ${templateId} for location ${locationId}`);
+
+    try {
+        const endpoint = `/emails/builder/data/${locationId}/${templateId}?isInternal=${isInternal}`;
+        await window.ghlUtilsRevex.waitForReady();
+        const response = await window.ghlUtilsRevex.get(endpoint);
+
+        if (!response || !response.data) {
+            console.warn('[Email Builder Details] No template data returned from endpoint');
+            return null;
+        }
+
+        const data = response.data;
+
+        // Map rich fields from the response
+        const enrichedDetails = {
+            id: templateId,
+            locationId: locationId,
+            name: data.name || '',
+            subjectLine: data.subjectLine || '',
+            previewUrl: data.previewUrl || '',
+            updatedAt: data.updatedAt || '',
+            isPlainText: data.isPlainText || false,
+            errorsPresent: data.errorsPresent || false,
+            type: data.type || 'builder',
+
+            // Editor data structure
+            editorData: data.editorData || {},
+            editorElementsCount: data.editorData?.elements?.length || 0,
+            editorAttributesCount: Object.keys(data.editorData?.attrs || {}).length,
+
+            // Template settings
+            templateSettings: data.editorData?.templateSettings || {},
+            bodyWidth: data.editorData?.templateSettings?.body?.[0]?.default || 600,
+            backgroundColor: data.editorData?.templateSettings?.body?.[1]?.default || '',
+
+            // Error information
+            errorItems: data.errorItems || [],
+            errorCount: data.errorItems?.length || 0,
+
+            // Full data for advanced use
+            fullEnrichmentData: data
+        };
+
+        console.log(`[Email Builder Details] ✅ Retrieved enriched template details for ${templateId}`);
+        console.log(`[Email Builder Details] - Elements: ${enrichedDetails.editorElementsCount}, Attributes: ${enrichedDetails.editorAttributesCount}`);
+
+        return enrichedDetails;
+    } catch (error) {
+        console.error('[Email Builder Details] ❌ Error fetching template details:', error);
+        return null;
+    }
 }
 
 /**
@@ -2490,7 +3207,9 @@ async function enrichSurveys(surveys) {
         return surveys;
     }
 
-    console.log(`[Survey Enrichment] Enriching ${surveys.length} surveys`);
+    console.log(`[Survey Enrichment] Using NEW services.leadconnectorhq.com endpoint`);
+    console.log(`[Survey Enrichment] Enriching ${surveys.length} surveys with version history`);
+
     const enrichedSurveys = [];
 
     for (let i = 0; i < surveys.length; i++) {
@@ -2501,35 +3220,95 @@ async function enrichSurveys(surveys) {
         console.log(`[Survey Enrichment] [${i + 1}/${surveys.length}] Processing: ${surveyName}`);
 
         try {
+            // Use the new services endpoint for detailed survey data
             const endpoint = `/surveys/${surveyId}`;
             await window.ghlUtilsRevex.waitForReady();
-            const response = await window.ghlUtilsRevex.get(endpoint);
-            const fullSurveyData = response.data;
+            const response = await window.ghlUtilsRevex.get(endpoint, 'services');
 
-            const totalPages = fullSurveyData.pages ? fullSurveyData.pages.length : 0;
-            const totalQuestions = fullSurveyData.pages
-                ? fullSurveyData.pages.reduce((total, page) => total + (page.questions ? page.questions.length : 0), 0)
-                : 0;
+            if (!response || !response.data || !response.data.survey) {
+                console.warn(`[Survey Enrichment] [${i + 1}] No data returned from new endpoint for: ${surveyName}`);
+                enrichedSurveys.push(survey);
+                continue;
+            }
+
+            const fullSurveyData = response.data.survey;
+            const formData = fullSurveyData.formData || {};
+            const formConfig = formData.form || {};
+            const slides = formData.slides || [];
+
+            // Count total fields across all slides
+            const totalFields = slides.reduce((total, slide) => {
+                return total + (slide.slideData ? slide.slideData.length : 0);
+            }, 0);
+
+            // Extract field types from slides
+            const fieldTypes = slides.flatMap(slide =>
+                (slide.slideData || []).map(field => field.type)
+            ).join('; ');
 
             const enrichedSurvey = {
                 ...survey,
-                submissionType: fullSurveyData.submissionType || '',
-                submissionUrl: fullSurveyData.submissionUrl || '',
-                thankyouUrl: fullSurveyData.thankyouUrl || '',
-                pixelId: fullSurveyData.pixelId || '',
-                eventKey: fullSurveyData.eventKey || '',
-                totalPages: totalPages,
-                totalQuestions: totalQuestions,
-                isActive: fullSurveyData.isActive || false,
-                allowMultipleSubmissions: fullSurveyData.allowMultipleSubmissions || false,
-                requireLogin: fullSurveyData.requireLogin || false,
+                deleted: fullSurveyData.deleted || false,
+                dateAdded: fullSurveyData.dateAdded || '',
+                dateUpdated: fullSurveyData.dateUpdated || '',
+
+                // Survey configuration
+                autoResponder: formData.autoResponder || false,
+                emailNotifications: formData.emailNotifications || false,
+                enablePartialContactCreation: formData.enablePartialContactCreation || false,
+
+                // Branding
+                companyName: formConfig.company?.name || '',
+
+                // Survey settings
+                disableAutoNavigation: formConfig.disableAutoNavigation || false,
+                enableTimezone: formConfig.enableTimezone || false,
+                isAnimationDisabled: formConfig.isAnimationDisabled || false,
+                isBackButtonEnable: formConfig.isBackButtonEnable || false,
+                isGDPRCompliant: formConfig.isGDPRCompliant || false,
+                isProgressBarEnabled: formConfig.isProgressBarEnabled || false,
+                isSurveyScrollEnabled: formConfig.isSurveyScrollEnabled || false,
+                stickyContact: formConfig.stickyContact || false,
+
+                // Slides and fields
+                totalSlides: slides.length,
+                totalFields: totalFields,
+                fieldTypes: fieldTypes,
+
+                // Form action settings
+                formActionType: formConfig.formAction?.actionType || '',
+                fieldsPerPage: formConfig.formAction?.fieldPerPage || '',
+                endSurveyType: formConfig.formAction?.endsurveyType || '',
+                endSurveyText: formConfig.formAction?.endsurveyText || '',
+                disqualifiedType: formConfig.formAction?.disqualifiedType || '',
+                disqualifiedText: formConfig.formAction?.disqualifiedText || '',
+                thankyouText: formConfig.formAction?.thankyouText || '',
+                redirectUrl: formConfig.formAction?.redirectUrl || '',
+
+                // Styling
+                currentThemeId: formConfig.currentThemeId || '',
+                backgroundColor: formConfig.style?.background || '',
+                bgImage: formConfig.style?.bgImage || '',
+
+                // Tracking
+                fbPixelId: formConfig.fbPixelId || '',
+
+                // Footer configuration
+                footerTheme: formConfig.footerStyle?.theme || '',
+                stickyFooter: formConfig.footerStyle?.stickyFooter || false,
+                enableProgressBar: formConfig.footerStyle?.enableProgressBar || false,
+
+                // Folder organization
+                parentFolderId: formData.parentFolderId || '',
+                parentFolderName: formData.parentFolderName || '',
+
                 fullEnrichmentData: fullSurveyData
             };
 
             enrichedSurveys.push(enrichedSurvey);
-            console.log(`[Survey Enrichment] [${i + 1}] Enriched: ${totalPages} pages, ${totalQuestions} questions`);
+            console.log(`[Survey Enrichment] [${i + 1}] ✅ Enriched with ${slides.length} slides, ${totalFields} fields from new endpoint`);
         } catch (error) {
-            console.error(`[Survey Enrichment] [${i + 1}] Error:`, error);
+            console.error(`[Survey Enrichment] [${i + 1}] ❌ Error:`, error);
             enrichedSurveys.push(survey);
         }
     }
@@ -3436,16 +4215,26 @@ async function enrichDashboards(dashboards, locationId) {
         const endpoint = `/reporting/dashboards?locationId=${locationId}`;
         await window.ghlUtilsRevex.waitForReady();
         const response = await window.ghlUtilsRevex.get(endpoint);
-        const apiDashboards = response.data?.dashboards || response.data || [];
 
-        console.log(`[Dashboard Enrichment] Fetched ${apiDashboards.length} dashboards from API`);
+        // New API structure: response.data contains { defaultDashboardId, dashboard: [], sharedDashboards: [] }
+        const apiData = response.data || {};
+        const userDashboards = apiData.dashboard || [];
+        const sharedDashboards = apiData.sharedDashboards || [];
+        const allApiDashboards = [...userDashboards, ...sharedDashboards];
+        const defaultDashboardId = apiData.defaultDashboardId || null;
+
+        console.log(`[Dashboard Enrichment] Fetched ${allApiDashboards.length} dashboards from API (${userDashboards.length} user, ${sharedDashboards.length} shared)`);
 
         // Create a map for quick lookup
         const dashboardMap = new Map();
-        apiDashboards.forEach(dashboard => {
+        allApiDashboards.forEach(dashboard => {
             const dashboardId = dashboard.id || dashboard._id;
             if (dashboardId) {
-                dashboardMap.set(dashboardId, dashboard);
+                dashboardMap.set(dashboardId, {
+                    ...dashboard,
+                    isShared: sharedDashboards.some(d => (d.id || d._id) === dashboardId),
+                    isDefault: dashboardId === defaultDashboardId || dashboard.isDefault === true
+                });
             }
         });
 
@@ -3453,67 +4242,106 @@ async function enrichDashboards(dashboards, locationId) {
         for (let i = 0; i < dashboards.length; i++) {
             const dashboard = dashboards[i];
             const dashboardId = dashboard.id || dashboard._id;
-            const dashboardName = dashboard.name || 'Unnamed Dashboard';
+            const dashboardName = dashboard.name || dashboard.title || 'Unnamed Dashboard';
 
             console.log(`[Dashboard Enrichment] [${i + 1}/${dashboards.length}] Processing: ${dashboardName}`);
 
-            const apiData = dashboardMap.get(dashboardId);
+            const apiDashboard = dashboardMap.get(dashboardId);
 
-            if (apiData && dashboardId) {
+            if (apiDashboard && dashboardId) {
                 // Try to fetch detailed information
                 let dashboardDetails = null;
-                let permissions = null;
+                let widgets = [];
+                let dashboardWidgets = [];
+                let permission = null;
 
                 try {
-                    // Fetch dashboard details
+                    // Fetch dashboard details - new structure includes dashboardWidgets, widgets, dashboard, permission
                     const detailsResponse = await window.ghlUtilsRevex.get(`/reporting/dashboards/${dashboardId}?locationId=${locationId}`);
-                    dashboardDetails = detailsResponse.data || detailsResponse.data?.dashboard || null;
-                    console.log(`[Dashboard Enrichment] [${i + 1}] Fetched details for ${dashboardName}`);
+                    const detailsData = detailsResponse.data || {};
+
+                    dashboardDetails = detailsData.dashboard || null;
+                    widgets = detailsData.widgets || [];
+                    dashboardWidgets = detailsData.dashboardWidgets || [];
+                    permission = detailsData.permission || null;
+
+                    console.log(`[Dashboard Enrichment] [${i + 1}] Fetched details: ${widgets.length} widgets, permission: ${permission}`);
                 } catch (error) {
                     console.log(`[Dashboard Enrichment] [${i + 1}] Could not fetch details: ${error.message}`);
                 }
 
-                try {
-                    // Fetch dashboard permissions
-                    const permResponse = await window.ghlUtilsRevex.get(`/reporting/dashboards/${dashboardId}/permissions?locationId=${locationId}`);
-                    permissions = permResponse.data || permResponse.data?.permissions || null;
-                    console.log(`[Dashboard Enrichment] [${i + 1}] Fetched permissions`);
-                } catch (error) {
-                    console.log(`[Dashboard Enrichment] [${i + 1}] Could not fetch permissions: ${error.message}`);
-                }
+                // Extract widget information
+                const widgetTitles = widgets.map(w => w.title).filter(Boolean).join('; ');
+                const widgetModules = [...new Set(widgets.map(w => w.module || w.moduleName).filter(Boolean))].join('; ');
+                const widgetChartTypes = [...new Set(widgets.map(w => w.chartType).filter(Boolean))].join('; ');
+                const widgetGroups = [...new Set(widgets.map(w => w.group).filter(Boolean))].join('; ');
+
+                // Extract custom fields used in widget filters
+                const customFieldsUsed = new Set();
+                widgets.forEach(widget => {
+                    if (widget.options && widget.options.filters) {
+                        extractCustomFieldsFromFilters(widget.options.filters, customFieldsUsed);
+                    }
+                    if (widget.savedOptionPairs) {
+                        widget.savedOptionPairs.forEach(pair => {
+                            if (pair.customFields) {
+                                pair.customFields.forEach(cf => {
+                                    if (cf.label) customFieldsUsed.add(cf.label);
+                                });
+                            }
+                        });
+                    }
+                });
 
                 const enrichedDashboard = {
                     ...dashboard,
                     // Basic info
-                    name: apiData.name || dashboard.name || '',
-                    description: dashboardDetails?.description || apiData.description || dashboard.description || '',
+                    title: dashboardDetails?.title || apiDashboard.title || dashboard.title || dashboard.name || '',
+                    name: dashboardDetails?.title || apiDashboard.title || dashboard.name || dashboard.title || '',
+                    type: dashboardDetails?.type || 'custom',
+                    featureType: dashboardDetails?.featureType || 'dashboard',
                     // Widget information
-                    totalWidgets: dashboardDetails?.widgets?.length || apiData.widgets?.length || 0,
-                    widgetTypes: dashboardDetails?.widgets?.length > 0
-                        ? [...new Set(dashboardDetails.widgets.map(w => w.type).filter(Boolean))].join('; ')
-                        : '',
-                    // Layout
-                    layout: dashboardDetails?.layout || apiData.layout || dashboard.layout || '',
-                    // Permissions
-                    isShared: permissions?.isShared || false,
-                    sharedWith: permissions?.users?.length || 0,
-                    sharedWithTeams: permissions?.teams?.length || 0,
-                    visibility: permissions?.visibility || apiData.visibility || 'private',
-                    // Metadata
-                    isDefault: apiData.isDefault || dashboard.isDefault || false,
-                    createdBy: dashboardDetails?.createdBy || apiData.createdBy || dashboard.createdBy || '',
-                    createdAt: apiData.createdAt || dashboard.createdAt || '',
-                    updatedAt: dashboardDetails?.updatedAt || apiData.updatedAt || dashboard.updatedAt || '',
+                    totalWidgets: widgets.length,
+                    totalDashboardWidgets: dashboardWidgets.length,
+                    widgetTitles: widgetTitles,
+                    widgetModules: widgetModules,
+                    widgetChartTypes: widgetChartTypes,
+                    widgetGroups: widgetGroups,
+                    customFieldsUsed: Array.from(customFieldsUsed).join('; '),
+                    // Dashboard properties
+                    hasCustomWidgets: dashboardDetails?.hasCustomWidgets || false,
+                    isShared: apiDashboard.isShared || dashboardDetails?.isShared || false,
+                    isPrivate: dashboardDetails?.isPrivate || false,
+                    isDefault: apiDashboard.isDefault || dashboardDetails?.isDefault || false,
+                    isFavorite: apiDashboard.isFavorite || false,
+                    // Permission
+                    permission: permission || 'unknown',
+                    // Owner and metadata
+                    ownerId: dashboardDetails?.ownerId || '',
+                    ownerRole: dashboardDetails?.ownerMeta?.role || '',
+                    ownerType: dashboardDetails?.ownerMeta?.type || '',
+                    companyId: dashboardDetails?.companyId || '',
+                    // Theme
+                    themeName: dashboardDetails?.themeConfig?.themeName || '',
+                    titleColor: dashboardDetails?.themeConfig?.titleColor || '',
+                    backgroundColor: dashboardDetails?.themeConfig?.backgroundColor || '',
+                    // Timestamps
+                    createdAt: dashboardDetails?.createdAt || apiDashboard.createdAt || dashboard.createdAt || '',
+                    updatedAt: dashboardDetails?.updatedAt || apiDashboard.updatedAt || dashboard.updatedAt || '',
+                    createdBy: dashboardDetails?.createdBy?.altId || dashboard.createdBy || '',
+                    updatedBy: dashboardDetails?.updatedBy?.altId || dashboard.updatedBy || '',
                     // Full API data
                     fullEnrichmentData: {
-                        apiDashboard: apiData,
-                        details: dashboardDetails,
-                        permissions: permissions
+                        apiDashboard: apiDashboard,
+                        dashboardDetails: dashboardDetails,
+                        widgets: widgets,
+                        dashboardWidgets: dashboardWidgets,
+                        permission: permission
                     }
                 };
 
                 enrichedDashboards.push(enrichedDashboard);
-                console.log(`[Dashboard Enrichment] [${i + 1}] Enriched: ${enrichedDashboard.totalWidgets} widgets, visibility: ${enrichedDashboard.visibility}`);
+                console.log(`[Dashboard Enrichment] [${i + 1}] Enriched: ${enrichedDashboard.totalWidgets} widgets, ${enrichedDashboard.widgetModules}, permission: ${enrichedDashboard.permission}`);
             } else {
                 console.log(`[Dashboard Enrichment] [${i + 1}] No API data found, using snapshot data only`);
                 enrichedDashboards.push(dashboard);
@@ -3531,6 +4359,33 @@ async function enrichDashboards(dashboards, locationId) {
     }
 
     return enrichedDashboards;
+}
+
+/**
+ * Extract custom field references from widget filters
+ */
+function extractCustomFieldsFromFilters(filters, customFieldsSet) {
+    if (!filters || !Array.isArray(filters)) return;
+
+    filters.forEach(filter => {
+        // Handle nested filter groups
+        if (filter.filters && Array.isArray(filter.filters)) {
+            extractCustomFieldsFromFilters(filter.filters, customFieldsSet);
+        }
+
+        // Extract custom field from filter field path
+        if (filter.field && filter.field.includes('custom_fields.')) {
+            const customFieldId = filter.field.replace('custom_fields.', '');
+            if (customFieldId) customFieldsSet.add(customFieldId);
+        }
+
+        // Extract from uiMeta
+        if (filter.uiMeta?.fieldMeta?.customField?.savedOptionPairs) {
+            filter.uiMeta.fieldMeta.customField.savedOptionPairs.forEach(pair => {
+                if (pair.label) customFieldsSet.add(pair.label);
+            });
+        }
+    });
 }
 
 /**

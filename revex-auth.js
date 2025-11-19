@@ -90,13 +90,14 @@ async function waitForReady(timeout = 15000) {
 }
 
 // Make a request via the message bridge (internal function)
-function sendRequest(type, endpoint, data, requestId, resolve, reject) {
+function sendRequest(type, endpoint, data, requestId, resolve, reject, baseUrl = null) {
   // Send request to inject.js
   window.postMessage({
     type,
     endpoint,
     data,
-    requestId
+    requestId,
+    baseUrl
   }, '*');
 
   // Timeout after 30 seconds
@@ -109,7 +110,7 @@ function sendRequest(type, endpoint, data, requestId, resolve, reject) {
 }
 
 // Make a request via the message bridge
-async function makeRevexRequest(type, endpoint, data = null) {
+async function makeRevexRequest(type, endpoint, data = null, baseUrl = null) {
   const requestId = ++requestIdCounter;
 
   return new Promise((resolve, reject) => {
@@ -118,23 +119,24 @@ async function makeRevexRequest(type, endpoint, data = null) {
 
     // If Revex is ready, send immediately
     if (isRevexReady) {
-      sendRequest(type, endpoint, data, requestId, resolve, reject);
+      sendRequest(type, endpoint, data, requestId, resolve, reject, baseUrl);
     } else {
       // Otherwise, queue the request
       console.log('[Revex] Queueing request until ready:', type, endpoint);
       requestQueue.push(() => {
-        sendRequest(type, endpoint, data, requestId, resolve, reject);
+        sendRequest(type, endpoint, data, requestId, resolve, reject, baseUrl);
       });
     }
   });
 }
 
 // Make GET request using Revex
-async function revexGet(endpoint) {
-  console.log('[Revex] GET:', endpoint);
+// baseUrl: 'backend' (default) or 'services' to choose base URL
+async function revexGet(endpoint, baseUrl = null) {
+  console.log('[Revex] GET:', endpoint, baseUrl ? `(base: ${baseUrl})` : '');
 
   try {
-    const response = await makeRevexRequest('REVEX_GET', endpoint);
+    const response = await makeRevexRequest('REVEX_GET', endpoint, null, baseUrl);
     console.log('[Revex] GET response:', response.status, endpoint);
     return response;
   } catch (error) {
@@ -144,11 +146,12 @@ async function revexGet(endpoint) {
 }
 
 // Make POST request using Revex
-async function revexPost(endpoint, data) {
-  console.log('[Revex] POST:', endpoint, data);
+// baseUrl: 'backend' (default) or 'services' to choose base URL
+async function revexPost(endpoint, data, baseUrl = null) {
+  console.log('[Revex] POST:', endpoint, baseUrl ? `(base: ${baseUrl})` : '', data);
 
   try {
-    const response = await makeRevexRequest('REVEX_POST', endpoint, data);
+    const response = await makeRevexRequest('REVEX_POST', endpoint, data, baseUrl);
     console.log('[Revex] POST response:', response.status, endpoint);
     return response;
   } catch (error) {
@@ -158,15 +161,37 @@ async function revexPost(endpoint, data) {
 }
 
 // Make PUT request using Revex
-async function revexPut(endpoint, data) {
-  console.log('[Revex] PUT:', endpoint, data);
+// baseUrl: 'backend' (default) or 'services' to choose base URL
+async function revexPut(endpoint, data, baseUrl = null) {
+  console.log('[Revex] PUT:', endpoint, baseUrl ? `(base: ${baseUrl})` : '', data);
 
   try {
-    const response = await makeRevexRequest('REVEX_PUT', endpoint, data);
+    const response = await makeRevexRequest('REVEX_PUT', endpoint, data, baseUrl);
     console.log('[Revex] PUT response:', response.status, endpoint);
     return response;
   } catch (error) {
     console.error('[Revex] PUT error:', error);
+    throw error;
+  }
+}
+
+// Make flexible fetch request with custom URL and options
+// Supports any HTTP method and any base URL (not just backend.leadconnectorhq.com)
+// Usage: fetch(url, { method: 'GET', body: {...}, headers: {...} })
+async function revexFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  console.log('[Revex] FETCH:', method, url);
+
+  try {
+    const response = await makeRevexRequest('REVEX_FETCH', url, {
+      method,
+      body: options.body,
+      headers: options.headers
+    });
+    console.log('[Revex] FETCH response:', response.status, url);
+    return response;
+  } catch (error) {
+    console.error('[Revex] FETCH error:', error);
     throw error;
   }
 }
@@ -232,6 +257,7 @@ window.ghlUtilsRevex = {
   get: revexGet,
   post: revexPost,
   put: revexPut,
+  fetch: revexFetch,
   getLocationId: getLocationId,
   waitForReady: waitForReady,
   isReady: () => isRevexReady
