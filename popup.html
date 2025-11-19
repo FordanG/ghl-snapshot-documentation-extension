@@ -238,6 +238,75 @@
       color: #8B5CF6;
       font-weight: bold;
     }
+
+    .asset-selection {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fafafa;
+    }
+
+    .asset-checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .asset-checkbox-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      background: white;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .asset-checkbox-item:hover {
+      background: #f5f3ff;
+    }
+
+    .asset-checkbox-item input[type="checkbox"] {
+      width: auto;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+
+    .asset-checkbox-item label {
+      margin: 0;
+      cursor: pointer;
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .asset-count {
+      font-size: 11px;
+      color: #6b7280;
+      margin-left: 4px;
+    }
+
+    .selection-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .selection-controls button {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 11px;
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .selection-controls button:hover {
+      background: #e5e7eb;
+    }
   </style>
 </head>
 <body>
@@ -274,6 +343,127 @@
           <option value="">Loading snapshots...</option>
         </select>
         <p class="hint">Select a snapshot from your account</p>
+      </div>
+
+      <div class="form-group">
+        <label>Asset Types to Export</label>
+        <div class="asset-selection">
+          <div class="asset-checkbox-group" id="assetCheckboxGroup">
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_custom_fields" value="custom_fields" checked>
+              <label for="asset_custom_fields">Custom Fields</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_custom_values" value="custom_values" checked>
+              <label for="asset_custom_values">Custom Values</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_tags" value="tags" checked>
+              <label for="asset_tags">Tags</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_pipelines" value="pipelines" checked>
+              <label for="asset_pipelines">Pipelines</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_calendars" value="calendars" checked>
+              <label for="asset_calendars">Calendars</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_campaigns" value="campaigns" checked>
+              <label for="asset_campaigns">Campaigns</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_forms" value="forms" checked>
+              <label for="asset_forms">Forms</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_surveys" value="surveys" checked>
+              <label for="asset_surveys">Surveys</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_workflow" value="workflow" checked>
+              <label for="asset_workflow">Workflows</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_text_templates" value="text_templates" checked>
+              <label for="asset_text_templates">Text Templates</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_email_templates" value="email_templates" checked>
+              <label for="asset_email_templates">Email Templates</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_funnels" value="funnels" checked>
+              <label for="asset_funnels">Funnels</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_links" value="links" checked>
+              <label for="asset_links">Links</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_folders" value="folders" checked>
+              <label for="asset_folders">Folders</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_teams" value="teams" checked>
+              <label for="asset_teams">Teams</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_membership_offers" value="membership_offers" checked>
+              <label for="asset_membership_offers">Membership Offers</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_membership_products" value="membership_products" checked>
+              <label for="asset_membership_products">Membership Products</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_triggers" value="triggers" checked>
+              <label for="asset_triggers">Triggers</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_knowledge_bases" value="knowledge_bases" checked>
+              <label for="asset_knowledge_bases">Knowledge Bases</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_quizzes" value="quizzes" checked>
+              <label for="asset_quizzes">Quizzes</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_dashboards" value="dashboards" checked>
+              <label for="asset_dashboards">Dashboards</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_custom_objects" value="custom_objects" checked>
+              <label for="asset_custom_objects">Custom Objects</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_certificates" value="certificates" checked>
+              <label for="asset_certificates">Certificates</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_review_settings" value="review_settings" checked>
+              <label for="asset_review_settings">Review Settings</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_conversation_ai" value="conversation_ai" checked>
+              <label for="asset_conversation_ai">Conversation AI</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_social_planner" value="social_planner" checked>
+              <label for="asset_social_planner">Social Planner</label>
+            </div>
+            <div class="asset-checkbox-item">
+              <input type="checkbox" id="asset_sectionTemplates" value="sectionTemplates" checked>
+              <label for="asset_sectionTemplates">Section Templates</label>
+            </div>
+          </div>
+        </div>
+        <div class="selection-controls">
+          <button type="button" id="selectAllAssets">Select All</button>
+          <button type="button" id="deselectAllAssets">Deselect All</button>
+        </div>
+        <p class="hint">Choose which asset types to include in the export</p>
       </div>
 
       <div class="form-group">

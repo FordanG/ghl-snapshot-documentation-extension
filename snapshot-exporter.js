@@ -16,8 +16,9 @@ console.log('[Snapshot Exporter] Module loaded');
  * @param {string} companyId - The company ID
  * @param {string} type - Type of assets to fetch (default: 'own')
  * @param {string} format - Export format: 'csv' or 'xlsx' (default: 'xlsx')
+ * @param {Array<string>} selectedAssets - Array of asset type keys to export (default: all)
  */
-async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format = 'xlsx') {
+async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format = 'xlsx', selectedAssets = null) {
     console.log('[Snapshot Exporter] Starting export for snapshot:', snapshotId);
 
     try {
@@ -72,7 +73,7 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
         if (format === 'xlsx') {
             // Export as single Excel workbook
             sendProgressUpdate(50, 'Creating Excel workbook...');
-            const workbook = await convertSnapshotToExcel(snapshotData, snapshotId, companyId);
+            const workbook = await convertSnapshotToExcel(snapshotData, snapshotId, companyId, selectedAssets);
 
             sendProgressUpdate(80, 'Generating Excel file...');
             downloadExcel(workbook, snapshotId);
@@ -82,7 +83,7 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
             return { success: true, filesGenerated: 1, format: 'xlsx' };
         } else {
             // Export as multiple CSV files (original behavior)
-            const csvFiles = await convertSnapshotToCSVs(snapshotData, snapshotId);
+            const csvFiles = await convertSnapshotToCSVs(snapshotData, snapshotId, selectedAssets);
 
             sendProgressUpdate(80, 'Generating downloads...');
 
@@ -113,7 +114,7 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
 /**
  * Convert snapshot data to multiple CSV files (one per asset type)
  */
-async function convertSnapshotToCSVs(snapshotData, snapshotId) {
+async function convertSnapshotToCSVs(snapshotData, snapshotId, selectedAssets = null) {
     const csvFiles = [];
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
 
@@ -148,8 +149,15 @@ async function convertSnapshotToCSVs(snapshotData, snapshotId) {
         { key: 'sectionTemplates', name: 'Section_Templates' }
     ];
 
+    // Filter asset types based on user selection
+    const assetsToExport = selectedAssets
+        ? assetTypes.filter(type => selectedAssets.includes(type.key))
+        : assetTypes;
+
+    console.log('[Snapshot Exporter] Exporting asset types:', assetsToExport.map(t => t.key));
+
     // Process each asset type
-    for (const assetType of assetTypes) {
+    for (const assetType of assetsToExport) {
         const assets = snapshotData[assetType.key];
 
         if (assets && assets.length > 0) {
@@ -182,7 +190,7 @@ async function convertSnapshotToCSVs(snapshotData, snapshotId) {
 /**
  * Convert snapshot data to Excel workbook with multiple sheets
  */
-async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
+async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selectedAssets = null) {
     console.log('[Snapshot Exporter] Converting to Excel workbook');
     console.log('[Snapshot Exporter] Company ID for enrichment:', companyId);
 
@@ -245,6 +253,13 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
         { key: 'sectionTemplates', name: 'Section Templates' }
     ];
 
+    // Filter asset types based on user selection
+    const assetsToExport = selectedAssets
+        ? assetTypes.filter(type => selectedAssets.includes(type.key))
+        : assetTypes;
+
+    console.log('[Snapshot Exporter] Exporting asset types:', assetsToExport.map(t => t.key));
+
     // Create summary data for summary sheet
     const summaryData = [];
     summaryData.push(['GHL Snapshot Export Summary']);
@@ -267,7 +282,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId) {
     let sheetsCreated = 0;
 
     // Process each asset type
-    for (const assetType of assetTypes) {
+    for (const assetType of assetsToExport) {
         const assets = snapshotData[assetType.key];
 
         if (assets && assets.length > 0) {
@@ -1261,14 +1276,14 @@ async function exportCurrentSnapshot() {
 /**
  * Export snapshot with custom IDs (called from popup)
  */
-async function exportSnapshotWithIds(snapshotId, companyId, format = 'xlsx') {
-    console.log('[Snapshot Exporter] Exporting with IDs:', { snapshotId, companyId, format });
+async function exportSnapshotWithIds(snapshotId, companyId, format = 'xlsx', selectedAssets = null) {
+    console.log('[Snapshot Exporter] Exporting with IDs:', { snapshotId, companyId, format, selectedAssets });
 
     if (!snapshotId || !companyId) {
         throw new Error('Snapshot ID and Company ID are required');
     }
 
-    return await exportSnapshotAssets(snapshotId, companyId, 'own', format);
+    return await exportSnapshotAssets(snapshotId, companyId, 'own', format, selectedAssets);
 }
 
 /**
@@ -1388,8 +1403,8 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     console.log('[Snapshot Exporter] Chrome message received:', request.action);
 
     if (request.action === 'exportSnapshotWithIds') {
-        console.log('[Snapshot Exporter] Starting export with IDs:', request.snapshotId, request.companyId, request.format);
-        exportSnapshotWithIds(request.snapshotId, request.companyId, request.format || 'xlsx')
+        console.log('[Snapshot Exporter] Starting export with IDs:', request.snapshotId, request.companyId, request.format, 'selectedAssets:', request.selectedAssets);
+        exportSnapshotWithIds(request.snapshotId, request.companyId, request.format || 'xlsx', request.selectedAssets)
             .then(result => {
                 console.log('[Snapshot Exporter] Export successful:', result);
                 sendResponse({ success: true, result });
@@ -1423,7 +1438,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 document.addEventListener('ghl-snapshot-export', async (event) => {
     console.log('[Snapshot Exporter] Page context event received:', event.detail.action);
 
-    const { action, snapshotId, companyId, format } = event.detail;
+    const { action, snapshotId, companyId, format, selectedAssets } = event.detail;
 
     try {
         let result;
@@ -1431,7 +1446,7 @@ document.addEventListener('ghl-snapshot-export', async (event) => {
         if (action === 'exportCurrentSnapshot') {
             result = await exportCurrentSnapshot();
         } else if (action === 'exportSnapshotWithIds') {
-            result = await exportSnapshotWithIds(snapshotId, companyId, format || 'xlsx');
+            result = await exportSnapshotWithIds(snapshotId, companyId, format || 'xlsx', selectedAssets);
         } else {
             throw new Error('Unknown action: ' + action);
         }

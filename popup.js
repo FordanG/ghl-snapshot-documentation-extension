@@ -15,6 +15,8 @@ const progress = document.getElementById('progress');
 const progressText = document.getElementById('progressText');
 const progressBar = document.getElementById('progressBar');
 const messageDiv = document.getElementById('message');
+const selectAllAssetsButton = document.getElementById('selectAllAssets');
+const deselectAllAssetsButton = document.getElementById('deselectAllAssets');
 
 // Store snapshots and companyId
 let snapshots = [];
@@ -38,6 +40,35 @@ openaiKeyInput.addEventListener('change', () => {
 enableAICheckbox.addEventListener('change', () => {
   chrome.storage.local.set({ aiAnalysisEnabled: enableAICheckbox.checked });
 });
+
+/**
+ * Select all asset checkboxes
+ */
+selectAllAssetsButton.addEventListener('click', () => {
+  const checkboxes = document.querySelectorAll('.asset-checkbox-item input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+  });
+});
+
+/**
+ * Deselect all asset checkboxes
+ */
+deselectAllAssetsButton.addEventListener('click', () => {
+  const checkboxes = document.querySelectorAll('.asset-checkbox-item input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+});
+
+/**
+ * Get selected asset types
+ */
+function getSelectedAssets() {
+  const checkboxes = document.querySelectorAll('.asset-checkbox-item input[type="checkbox"]:checked');
+  const selectedAssets = Array.from(checkboxes).map(checkbox => checkbox.value);
+  return selectedAssets.length > 0 ? selectedAssets : null;
+}
 
 /**
  * Export with manual IDs
@@ -80,14 +111,23 @@ exportManualButton.addEventListener('click', async () => {
     // Get export format
     const format = exportFormatSelect ? exportFormatSelect.value : 'xlsx';
 
-    console.log('[Popup] Sending export request with IDs:', { snapshotId, companyId, format });
+    // Get selected assets
+    const selectedAssets = getSelectedAssets();
+    if (!selectedAssets) {
+      showMessage('Please select at least one asset type to export', 'error');
+      exportManualButton.disabled = false;
+      return;
+    }
+
+    console.log('[Popup] Sending export request with IDs:', { snapshotId, companyId, format, selectedAssets });
 
     // Send export request with IDs
     chrome.tabs.sendMessage(tabs[0].id, {
       action: 'exportSnapshotWithIds',
       snapshotId: snapshotId,
       companyId: companyId,
-      format: format
+      format: format,
+      selectedAssets: selectedAssets
     }, (response) => {
       if (chrome.runtime.lastError) {
         console.error('[Popup] Export error:', chrome.runtime.lastError);
@@ -167,7 +207,14 @@ exportSelectedButton.addEventListener('click', async () => {
     // Get export format
     const format = exportFormatSelect ? exportFormatSelect.value : 'xlsx';
 
-    console.log('[Popup] Exporting selected snapshot:', snapshotId, 'format:', format);
+    // Get selected assets
+    const selectedAssets = getSelectedAssets();
+    if (!selectedAssets) {
+      showMessage('Please select at least one asset type to export', 'error');
+      return;
+    }
+
+    console.log('[Popup] Exporting selected snapshot:', snapshotId, 'format:', format, 'assets:', selectedAssets);
 
     // Disable button
     exportSelectedButton.disabled = true;
@@ -189,7 +236,8 @@ exportSelectedButton.addEventListener('click', async () => {
       action: 'exportSnapshotWithIds',
       snapshotId: snapshotId,
       companyId: companyId,
-      format: format
+      format: format,
+      selectedAssets: selectedAssets
     }, (response) => {
       if (chrome.runtime.lastError) {
         console.error('[Popup] Export error:', chrome.runtime.lastError);
