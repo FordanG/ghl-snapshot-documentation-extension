@@ -10,9 +10,7 @@
     "tabs"
   ],
   "host_permissions": [
-    "https://app.gohighlevel.com/*",
-    "https://*.gohighlevel.com/*",
-    "https://backend.leadconnectorhq.com/*"
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -28,8 +26,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://app.gohighlevel.com/*",
-        "https://*.gohighlevel.com/*"
+        "<all_urls>"
       ],
       "js": ["xlsx.full.min.js", "revex-auth.js", "snapshot-exporter.js"],
       "run_at": "document_idle"
@@ -39,8 +36,7 @@
     {
       "resources": ["inject.js", "page-exporter.js"],
       "matches": [
-        "https://app.gohighlevel.com/*",
-        "https://*.gohighlevel.com/*"
+        "<all_urls>"
       ]
     }
   ],

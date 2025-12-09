@@ -1,0 +1,19 @@
+# Build outputs
+build-system/dist/
+build-system/snapshot-ai.zip
+build-system/snapshot-ai.crx
+
+# Private key - DO NOT COMMIT
+build-system/extension-key.pem
+
+# macOS
+.DS_Store
+
+# Node modules
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

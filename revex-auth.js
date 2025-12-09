@@ -8,6 +8,28 @@ let revexReadyPromise = null;
 let revexReadyResolve = null;
 const requestQueue = [];
 
+// GHL page detection state
+let isGHLPage = false;
+let ghlPageData = null;
+let ghlAuthToken = null;
+let ghlLocationId = null;
+let ghlDetectionComplete = false;
+let ghlDetectionPromise = null;
+let ghlDetectionResolve = null;
+
+// Create a promise that resolves when GHL detection is complete
+function createGHLDetectionPromise() {
+  if (!ghlDetectionPromise) {
+    ghlDetectionPromise = new Promise((resolve) => {
+      ghlDetectionResolve = resolve;
+    });
+  }
+  return ghlDetectionPromise;
+}
+
+// Initialize GHL detection promise
+createGHLDetectionPromise();
+
 // Create a promise that resolves when Revex is ready
 function createReadyPromise() {
   if (!revexReadyPromise) {
@@ -21,6 +43,32 @@ function createReadyPromise() {
 // Listen for responses from inject.js
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
+
+  // Handle GHL page data response (detection)
+  if (event.data.type === 'GHL_PAGE_DATA_RESPONSE') {
+    console.log('[Revex] GHL page data received:', {
+      hasGHLData: event.data.hasGHLData,
+      hasAuthToken: !!event.data.authToken,
+      locationId: event.data.locationId
+    });
+
+    isGHLPage = event.data.hasGHLData || !!event.data.authToken;
+    ghlPageData = event.data.data;
+    ghlAuthToken = event.data.authToken;
+    ghlLocationId = event.data.locationId;
+    ghlDetectionComplete = true;
+
+    if (ghlDetectionResolve) {
+      ghlDetectionResolve({
+        isGHLPage,
+        hasAuthToken: !!ghlAuthToken,
+        locationId: ghlLocationId
+      });
+    }
+
+    console.log('[Revex] GHL detection complete. Is GHL page:', isGHLPage);
+    return;
+  }
 
   // Handle readiness signal
   if (event.data.type === 'REVEX_READY') {
@@ -196,16 +244,22 @@ async function revexFetch(url, options = {}) {
   }
 }
 
-// Get location ID from page URL
+// Get location ID - uses cached value from detection or falls back to URL parsing
 function getLocationId() {
-  // Try from URL
+  // First try the cached locationId from inject.js detection
+  if (ghlLocationId) {
+    console.log('[Revex] Location ID from cached detection:', ghlLocationId);
+    return ghlLocationId;
+  }
+
+  // Fallback: extract from URL
   const urlMatch = window.location.href.match(/\/location\/([A-Za-z0-9_-]{18,28})/);
   if (urlMatch && urlMatch[1]) {
     console.log('[Revex] Location ID from URL:', urlMatch[1]);
     return urlMatch[1];
   }
 
-  console.warn('[Revex] Could not determine location ID from URL');
+  console.warn('[Revex] Could not determine location ID');
   return null;
 }
 
@@ -252,6 +306,63 @@ if (document.readyState === 'loading') {
   setTimeout(injectPageScript, 500);
 }
 
+// Wait for GHL detection to complete
+async function waitForGHLDetection(timeout = 5000) {
+  console.log('[Revex] Waiting for GHL detection...');
+
+  // First, try direct URL-based detection (fastest and most reliable for GHL app)
+  const urlLocationId = getLocationId();
+  const hostname = window.location.hostname;
+  const isGHLDomain = hostname.includes('gohighlevel.com') ||
+                      hostname.includes('leadconnectorhq.com') ||
+                      hostname.includes('highlevel.com');
+
+  if (urlLocationId || isGHLDomain) {
+    console.log('[Revex] Direct detection: GHL page detected via URL/domain');
+    const result = {
+      isGHLPage: true,
+      hasAuthToken: !!ghlAuthToken,
+      locationId: urlLocationId || ghlLocationId
+    };
+    // Update cached values
+    if (urlLocationId && !ghlLocationId) {
+      ghlLocationId = urlLocationId;
+    }
+    isGHLPage = true;
+    ghlDetectionComplete = true;
+    return result;
+  }
+
+  // If not detected via URL, wait for inject.js detection
+  if (ghlDetectionComplete) {
+    console.log('[Revex] Detection already complete, isGHLPage:', isGHLPage);
+    return { isGHLPage, hasAuthToken: !!ghlAuthToken, locationId: ghlLocationId };
+  }
+
+  // Race between detection promise and timeout
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => {
+      console.log('[Revex] GHL detection timeout - checking URL fallback');
+      // Final fallback: check URL one more time
+      const fallbackLocationId = getLocationId();
+      if (fallbackLocationId) {
+        resolve({ isGHLPage: true, hasAuthToken: false, locationId: fallbackLocationId });
+      } else {
+        resolve({ isGHLPage: false, hasAuthToken: false, locationId: null, timeout: true });
+      }
+    }, timeout);
+  });
+
+  try {
+    const result = await Promise.race([ghlDetectionPromise, timeoutPromise]);
+    console.log('[Revex] GHL detection result:', result);
+    return result;
+  } catch (error) {
+    console.error('[Revex] GHL detection error:', error);
+    return { isGHLPage: false, hasAuthToken: false, locationId: null, error: error.message };
+  }
+}
+
 // Export functions to global scope
 window.ghlUtilsRevex = {
   get: revexGet,
@@ -260,7 +371,16 @@ window.ghlUtilsRevex = {
   fetch: revexFetch,
   getLocationId: getLocationId,
   waitForReady: waitForReady,
-  isReady: () => isRevexReady
+  isReady: () => isRevexReady,
+  // GHL detection functions
+  isGHLPage: () => isGHLPage,
+  waitForGHLDetection: waitForGHLDetection,
+  getGHLDetectionState: () => ({
+    isGHLPage,
+    ghlDetectionComplete,
+    hasAuthToken: !!ghlAuthToken,
+    locationId: ghlLocationId
+  })
 };
 
 console.log('[Revex] Auth module ready');

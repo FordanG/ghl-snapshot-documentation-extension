@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const JavaScriptObfuscator = require('javascript-obfuscator');
 const { minify } = require('terser');
 
@@ -18,6 +19,7 @@ const JS_FILES = [
   'content.js',
   'detect-ghl.js',
   'inject.js',
+  'license-manager.js',
   'page-exporter.js',
   'popup.js',
   'quick-navigation.js',
@@ -44,8 +46,8 @@ const OBFUSCATOR_OPTIONS = {
   compact: true,
   controlFlowFlattening: true,
   controlFlowFlatteningThreshold: 0.75,
-  deadCodeInjection: true,
-  deadCodeInjectionThreshold: 0.4,
+  deadCodeInjection: false,
+  deadCodeInjectionThreshold: 0,
   debugProtection: false, // Keep false for Chrome extension compatibility
   debugProtectionInterval: 0,
   disableConsoleOutput: false,
@@ -101,7 +103,7 @@ JS_FILES.forEach(file => {
     const minified = minify(obfuscated.getObfuscatedCode(), {
       compress: {
         dead_code: true,
-        drop_console: false,
+        drop_console: true,
         drop_debugger: true,
         keep_classnames: false,
         keep_fnames: false
@@ -156,6 +158,20 @@ const archive = archiver('zip', { zlib: { level: 9 } });
 output.on('close', () => {
   console.log(`✅ Created ${zipPath}`);
   console.log(`📊 Total size: ${(archive.pointer() / 1024).toFixed(2)} KB`);
+
+  // Create CRX file
+  console.log('\n📦 Creating CRX file...');
+  try {
+    const createCrxScript = path.join(__dirname, 'create-crx.sh');
+    if (fs.existsSync(createCrxScript)) {
+      execSync(`bash "${createCrxScript}"`, { stdio: 'inherit' });
+    } else {
+      console.log('⚠️  CRX creation script not found, skipping...');
+    }
+  } catch (error) {
+    console.log('⚠️  Failed to create CRX file:', error.message);
+  }
+
   console.log('\n✨ Build complete! Your protected extension is ready to distribute.');
 });
 

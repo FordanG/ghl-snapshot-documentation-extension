@@ -10,6 +10,18 @@
 
 console.log('[Snapshot Exporter] Module loaded');
 
+// Module-level setting for including full enrichment data (JSON column)
+let _includeFullEnrichmentData = true;
+
+/**
+ * Initialize export settings from chrome.storage
+ */
+async function initExportSettings() {
+    const settings = await chrome.storage.local.get(['includeFullEnrichment']);
+    _includeFullEnrichmentData = settings.includeFullEnrichment !== false; // Default to true
+    console.log('[Snapshot Exporter] Include full enrichment data:', _includeFullEnrichmentData);
+}
+
 /**
  * Main function to export snapshot assets
  * @param {string} snapshotId - The snapshot ID to export
@@ -22,6 +34,9 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
     console.log('[Snapshot Exporter] Starting export for snapshot:', snapshotId);
 
     try {
+        // Initialize export settings
+        await initExportSettings();
+
         // Ensure revex is ready
         if (!window.ghlUtilsRevex) {
             throw new Error('Revex authentication not available. Please reload the page.');
@@ -109,6 +124,591 @@ async function exportSnapshotAssets(snapshotId, companyId, type = 'own', format 
         sendProgressUpdate(0, `Error: ${error.message}`);
         throw error;
     }
+}
+
+/**
+ * Export location assets directly (without snapshot reference)
+ * @param {string} locationId - The location ID to export assets from
+ * @param {string} format - Export format: 'csv' or 'xlsx' (default: 'xlsx')
+ * @param {Array<string>} selectedAssets - Array of asset type keys to export (default: all)
+ */
+async function exportLocationAssets(locationId, format = 'xlsx', selectedAssets = null) {
+    console.log('[Location Exporter] Starting export for location:', locationId);
+
+    try {
+        // Initialize export settings
+        await initExportSettings();
+
+        // Ensure revex is ready
+        if (!window.ghlUtilsRevex) {
+            throw new Error('Revex authentication not available. Please reload the page.');
+        }
+
+        console.log('[Location Exporter] Waiting for Revex to be ready...');
+        await window.ghlUtilsRevex.waitForReady();
+        console.log('[Location Exporter] Revex is ready');
+
+        // Send progress update
+        sendLocationProgressUpdate(5, 'Fetching location assets...');
+
+        // Define asset type endpoints mapping
+        const assetEndpoints = [
+            { key: 'custom_fields', endpoint: `/locations/${locationId}/customFields`, dataKey: 'customFields' },
+            { key: 'custom_values', endpoint: `/locations/${locationId}/customValues`, dataKey: 'customValues' },
+            { key: 'tags', endpoint: `/locations/${locationId}/tags`, dataKey: 'tags' },
+            { key: 'pipelines', endpoint: `/opportunities/pipelines?locationId=${locationId}`, dataKey: 'pipelines' },
+            { key: 'calendars', endpoint: `/calendars/?locationId=${locationId}`, dataKey: 'calendars' },
+            { key: 'campaigns', endpoint: `/campaigns/?locationId=${locationId}`, dataKey: 'campaigns' },
+            { key: 'forms', endpoint: `/forms/?locationId=${locationId}`, dataKey: 'forms' },
+            { key: 'surveys', endpoint: `/surveys/?locationId=${locationId}`, dataKey: 'surveys' },
+            { key: 'workflow', endpoint: `/workflows/?locationId=${locationId}`, dataKey: 'workflows' },
+            { key: 'funnels', endpoint: `/funnels/funnel/list?locationId=${locationId}&type=funnel&category=all&offset=0&limit=1000`, dataKey: 'funnels' },
+            { key: 'triggers', endpoint: `/triggers/?locationId=${locationId}`, dataKey: 'triggers' },
+            { key: 'email_templates', endpoint: `/emails/templates?locationId=${locationId}`, dataKey: 'templates' },
+            { key: 'folders', endpoint: `/medias/files?locationId=${locationId}&type=folder`, dataKey: 'files' }
+        ];
+
+        // Filter endpoints based on selected assets
+        const endpointsToFetch = selectedAssets
+            ? assetEndpoints.filter(ep => selectedAssets.includes(ep.key))
+            : assetEndpoints;
+
+        console.log('[Location Exporter] Fetching asset types:', endpointsToFetch.map(e => e.key));
+
+        // Fetch all assets
+        const locationData = {};
+        let fetchedCount = 0;
+        const totalToFetch = endpointsToFetch.length;
+
+        for (const assetConfig of endpointsToFetch) {
+            try {
+                console.log(`[Location Exporter] Fetching ${assetConfig.key}...`);
+                sendLocationProgressUpdate(
+                    5 + Math.floor((fetchedCount / totalToFetch) * 40),
+                    `Fetching ${assetConfig.key}...`
+                );
+
+                const response = await window.ghlUtilsRevex.get(assetConfig.endpoint);
+
+                if (response && response.data) {
+                    // Handle different response structures
+                    let assets = response.data[assetConfig.dataKey] || response.data;
+
+                    // Ensure it's an array
+                    if (!Array.isArray(assets)) {
+                        if (assets && typeof assets === 'object') {
+                            assets = Object.values(assets);
+                        } else {
+                            assets = [];
+                        }
+                    }
+
+                    locationData[assetConfig.key] = assets;
+                    console.log(`[Location Exporter] Fetched ${assets.length} ${assetConfig.key}`);
+                } else {
+                    locationData[assetConfig.key] = [];
+                    console.log(`[Location Exporter] No data for ${assetConfig.key}`);
+                }
+            } catch (error) {
+                console.warn(`[Location Exporter] Failed to fetch ${assetConfig.key}:`, error.message);
+                locationData[assetConfig.key] = [];
+            }
+            fetchedCount++;
+        }
+
+        // Add empty arrays for asset types we couldn't fetch
+        const allAssetKeys = [
+            'custom_fields', 'custom_values', 'tags', 'pipelines', 'calendars',
+            'campaigns', 'forms', 'surveys', 'workflow', 'text_templates',
+            'email_templates', 'funnels', 'links', 'folders', 'teams',
+            'membership_offers', 'membership_products', 'triggers', 'knowledge_bases',
+            'quizzes', 'dashboards', 'custom_objects', 'certificates',
+            'review_settings', 'conversation_ai', 'social_planner', 'sectionTemplates'
+        ];
+
+        for (const key of allAssetKeys) {
+            if (!locationData[key]) {
+                locationData[key] = [];
+            }
+        }
+
+        console.log('[Location Exporter] Location data compiled');
+        console.log('[Location Exporter] Asset types found:', Object.keys(locationData).filter(k => locationData[k].length > 0));
+
+        sendLocationProgressUpdate(50, 'Processing location assets...');
+
+        if (format === 'xlsx') {
+            // Export as single Excel workbook
+            sendLocationProgressUpdate(60, 'Creating Excel workbook...');
+            const workbook = await convertLocationToExcel(locationData, locationId, selectedAssets);
+
+            sendLocationProgressUpdate(80, 'Generating Excel file...');
+            downloadLocationExcel(workbook, locationId);
+
+            sendLocationProgressUpdate(100, 'Export complete!');
+            console.log('[Location Exporter] Excel export completed successfully');
+            return { success: true, filesGenerated: 1, format: 'xlsx' };
+        } else {
+            // Export as multiple CSV files
+            const csvFiles = await convertLocationToCSVs(locationData, locationId, selectedAssets);
+
+            sendLocationProgressUpdate(80, 'Generating downloads...');
+
+            // Download all CSV files
+            for (let i = 0; i < csvFiles.length; i++) {
+                const csvFile = csvFiles[i];
+                downloadCSV(csvFile.content, csvFile.filename);
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const progress = 80 + Math.floor((i + 1) / csvFiles.length * 15);
+                sendLocationProgressUpdate(progress, `Downloading file ${i + 1} of ${csvFiles.length}...`);
+            }
+
+            sendLocationProgressUpdate(100, 'Export complete!');
+            console.log('[Location Exporter] CSV export completed successfully');
+            return { success: true, filesGenerated: csvFiles.length, format: 'csv' };
+        }
+
+    } catch (error) {
+        console.error('[Location Exporter] Export failed:', error);
+        sendLocationProgressUpdate(0, `Error: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Send progress update for location export
+ */
+function sendLocationProgressUpdate(progress, message) {
+    chrome.runtime.sendMessage({
+        action: 'locationExportProgress',
+        progress: progress,
+        message: message
+    });
+}
+
+/**
+ * Convert location data to Excel workbook
+ */
+async function convertLocationToExcel(locationData, locationId, selectedAssets = null) {
+    console.log('[Location Exporter] Converting to Excel workbook');
+
+    // Create new workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Define asset types to export
+    const assetTypes = [
+        { key: 'custom_fields', name: 'Custom Fields' },
+        { key: 'custom_values', name: 'Custom Values' },
+        { key: 'tags', name: 'Tags' },
+        { key: 'pipelines', name: 'Pipelines' },
+        { key: 'calendars', name: 'Calendars' },
+        { key: 'campaigns', name: 'Campaigns' },
+        { key: 'forms', name: 'Forms' },
+        { key: 'surveys', name: 'Surveys' },
+        { key: 'workflow', name: 'Workflows' },
+        { key: 'text_templates', name: 'Text Templates' },
+        { key: 'email_templates', name: 'Email Templates' },
+        { key: 'funnels', name: 'Funnels' },
+        { key: 'links', name: 'Links' },
+        { key: 'folders', name: 'Folders' },
+        { key: 'teams', name: 'Teams' },
+        { key: 'membership_offers', name: 'Membership Offers' },
+        { key: 'membership_products', name: 'Membership Products' },
+        { key: 'triggers', name: 'Triggers' },
+        { key: 'knowledge_bases', name: 'Knowledge Bases' },
+        { key: 'quizzes', name: 'Quizzes' },
+        { key: 'dashboards', name: 'Dashboards' },
+        { key: 'custom_objects', name: 'Custom Objects' },
+        { key: 'certificates', name: 'Certificates' },
+        { key: 'review_settings', name: 'Review Settings' },
+        { key: 'conversation_ai', name: 'Conversation AI' },
+        { key: 'social_planner', name: 'Social Planner' },
+        { key: 'sectionTemplates', name: 'Section Templates' }
+    ];
+
+    // Filter asset types based on user selection
+    const assetsToExport = selectedAssets
+        ? assetTypes.filter(type => selectedAssets.includes(type.key))
+        : assetTypes;
+
+    // Create summary data
+    const summaryData = [];
+    summaryData.push(['GHL Location Assets Export Summary']);
+    summaryData.push(['Location ID', locationId]);
+    summaryData.push(['Export Type', 'Live Location Assets']);
+    summaryData.push(['Export Date', new Date().toISOString()]);
+    summaryData.push(['Export Format', 'Excel Workbook (.xlsx)']);
+    summaryData.push([]);
+    summaryData.push(['Asset Type', 'Count', 'Sheet Name']);
+
+    // Create master list data
+    const masterListData = [];
+    masterListData.push(['ID', 'Name', 'Type of Asset']);
+
+    let totalAssets = 0;
+    let sheetsCreated = 0;
+
+    // Process each asset type
+    for (const assetType of assetsToExport) {
+        const assets = locationData[assetType.key];
+
+        if (assets && assets.length > 0) {
+            totalAssets += assets.length;
+
+            // Add to summary
+            summaryData.push([assetType.name, assets.length, assetType.name]);
+
+            // Add each asset to master list
+            assets.forEach(asset => {
+                const id = asset._id || asset.id || asset.ID || '';
+                const name = asset.name || asset.title || asset.Name || '';
+                masterListData.push([id, name, assetType.name]);
+            });
+
+            // Special handling for workflows - enrich with full data and AI analysis
+            if (assetType.key === 'workflow') {
+                console.log('[Location Exporter] ✅ WORKFLOW ENRICHMENT TRIGGERED');
+
+                // Check if AI is enabled to show appropriate message
+                const aiSettings = await chrome.storage.local.get(['aiAnalysisEnabled', 'openaiApiKey']);
+                const aiEnabled = aiSettings.aiAnalysisEnabled === true && aiSettings.openaiApiKey;
+                const progressMsg = aiEnabled
+                    ? `Analyzing ${assets.length} workflows with AI...`
+                    : `Enriching ${assets.length} workflows...`;
+                sendLocationProgressUpdate(55, progressMsg);
+
+                const enrichedWorkflows = await enrichWorkflowsWithAI(assets, null, null, locationId);
+                const sheetData = convertWorkflowsToArray(enrichedWorkflows);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                // Set custom column widths for workflows
+                worksheet['!cols'] = [
+                    { wch: 35 }, { wch: 12 }, { wch: 10 }, { wch: 25 }, { wch: 15 },
+                    { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
+                    { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 12 },
+                    { wch: 40 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 12 },
+                    { wch: 60 }, { wch: 12 }, { wch: 60 }, { wch: 12 }, { wch: 12 },
+                    { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 60 }, { wch: 60 }
+                ];
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Workflows');
+                sheetsCreated++;
+                console.log(`[Location Exporter] Created enriched sheet for Workflows: ${assets.length} items`);
+            }
+            // Special handling for Forms - enrich with full data
+            else if (assetType.key === 'forms') {
+                console.log('[Location Exporter] ✅ FORM ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(58, `Enriching ${assets.length} forms...`);
+
+                const enrichedForms = await enrichForms(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedForms);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Forms');
+                sheetsCreated++;
+                console.log(`[Location Exporter] Created enriched sheet for Forms: ${assets.length} items`);
+            }
+            // Special handling for Funnels - enrich with pages, steps, elements
+            else if (assetType.key === 'funnels') {
+                console.log('[Location Exporter] ✅ FUNNEL ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(60, `Enriching ${assets.length} funnels...`);
+
+                const { enrichedFunnels, allPages, allSteps, allElementCounts } = await enrichFunnels(assets, locationId);
+
+                // Create main Funnels sheet
+                const sheetData = convertAssetTypeToArray(enrichedFunnels);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Funnels');
+                sheetsCreated++;
+
+                // Create Funnel Pages sheet
+                if (allPages.length > 0) {
+                    const pagesSheetData = convertAssetTypeToArray(allPages);
+                    const pagesWorksheet = XLSX.utils.aoa_to_sheet(pagesSheetData);
+                    pagesWorksheet['!cols'] = pagesSheetData[0].map(() => ({ wch: 20 }));
+                    XLSX.utils.book_append_sheet(workbook, pagesWorksheet, 'Funnel Pages');
+                    sheetsCreated++;
+                }
+
+                // Create Funnel Steps sheet
+                if (allSteps.length > 0) {
+                    const stepsSheetData = convertAssetTypeToArray(allSteps);
+                    const stepsWorksheet = XLSX.utils.aoa_to_sheet(stepsSheetData);
+                    stepsWorksheet['!cols'] = stepsSheetData[0].map(() => ({ wch: 20 }));
+                    XLSX.utils.book_append_sheet(workbook, stepsWorksheet, 'Funnel Steps');
+                    sheetsCreated++;
+                }
+
+                // Create Funnel Page Elements sheet
+                if (allElementCounts.length > 0) {
+                    const elementsSheetData = convertAssetTypeToArray(allElementCounts);
+                    const elementsWorksheet = XLSX.utils.aoa_to_sheet(elementsSheetData);
+                    elementsWorksheet['!cols'] = elementsSheetData[0].map(() => ({ wch: 15 }));
+                    XLSX.utils.book_append_sheet(workbook, elementsWorksheet, 'Funnel Page Elements');
+                    sheetsCreated++;
+                }
+                console.log(`[Location Exporter] Created enriched sheets for Funnels: ${assets.length} items`);
+            }
+            // Special handling for Calendars - enrich with full data
+            else if (assetType.key === 'calendars') {
+                console.log('[Location Exporter] ✅ CALENDAR ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(65, `Enriching ${assets.length} calendars...`);
+
+                const enrichedCalendars = await enrichCalendars(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedCalendars);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Calendars');
+                sheetsCreated++;
+
+                // Also create Calendar Configuration sheet
+                const calendarConfig = await extractCalendarConfiguration(locationId);
+                if (calendarConfig) {
+                    const configSheetData = convertAssetTypeToArray([calendarConfig]);
+                    const configWorksheet = XLSX.utils.aoa_to_sheet(configSheetData);
+                    configWorksheet['!cols'] = configSheetData[0].map(() => ({ wch: 20 }));
+                    XLSX.utils.book_append_sheet(workbook, configWorksheet, 'Calendar Configuration');
+                    sheetsCreated++;
+                }
+
+                // Also create Calendar Groups sheet
+                const calendarGroups = await enrichCalendarGroups(locationId);
+                if (calendarGroups && calendarGroups.length > 0) {
+                    const groupsSheetData = convertAssetTypeToArray(calendarGroups);
+                    const groupsWorksheet = XLSX.utils.aoa_to_sheet(groupsSheetData);
+                    groupsWorksheet['!cols'] = groupsSheetData[0].map(() => ({ wch: 20 }));
+                    XLSX.utils.book_append_sheet(workbook, groupsWorksheet, 'Calendar Groups');
+                    sheetsCreated++;
+                }
+                console.log(`[Location Exporter] Created enriched sheets for Calendars: ${assets.length} items`);
+            }
+            // Special handling for Pipelines - enrich with full data
+            else if (assetType.key === 'pipelines') {
+                console.log('[Location Exporter] ✅ PIPELINE ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(70, `Enriching ${assets.length} pipelines...`);
+
+                const enrichedPipelines = await enrichPipelines(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedPipelines);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Pipelines');
+                sheetsCreated++;
+
+                // Also create Pipeline Stages sheet
+                const pipelineStages = extractPipelineStages(enrichedPipelines);
+                if (pipelineStages && pipelineStages.length > 0) {
+                    const stagesSheetData = convertAssetTypeToArray(pipelineStages);
+                    const stagesWorksheet = XLSX.utils.aoa_to_sheet(stagesSheetData);
+                    stagesWorksheet['!cols'] = stagesSheetData[0].map(() => ({ wch: 20 }));
+                    XLSX.utils.book_append_sheet(workbook, stagesWorksheet, 'Pipeline Stages');
+                    sheetsCreated++;
+                }
+                console.log(`[Location Exporter] Created enriched sheets for Pipelines: ${assets.length} items`);
+            }
+            // Special handling for Email Templates - enrich with full data
+            else if (assetType.key === 'email_templates') {
+                console.log('[Location Exporter] ✅ EMAIL TEMPLATE ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(75, `Enriching ${assets.length} email templates...`);
+
+                const enrichedTemplates = await enrichEmailTemplates(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedTemplates);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Email Templates');
+                sheetsCreated++;
+                console.log(`[Location Exporter] Created enriched sheet for Email Templates: ${enrichedTemplates.length} items`);
+            }
+            // Special handling for Quizzes - enrich like forms
+            else if (assetType.key === 'quizzes') {
+                console.log('[Location Exporter] ✅ QUIZ ENRICHMENT TRIGGERED');
+                sendLocationProgressUpdate(78, `Enriching ${assets.length} quizzes...`);
+
+                const enrichedQuizzes = await enrichForms(assets, locationId);
+                const sheetData = convertAssetTypeToArray(enrichedQuizzes);
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                worksheet['!cols'] = sheetData[0].map(() => ({ wch: 20 }));
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Quizzes');
+                sheetsCreated++;
+                console.log(`[Location Exporter] Created enriched sheet for Quizzes: ${assets.length} items`);
+            }
+            // Default handling for other asset types
+            else {
+                const sheetData = convertAssetTypeToArray(assets);
+                const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+                // Set column widths
+                const colWidths = sheetData[0].map((_, i) => ({
+                    wch: Math.min(
+                        Math.max(
+                            ...sheetData.slice(0, 100).map(row => String(row[i] || '').length),
+                            10
+                        ),
+                        50
+                    )
+                }));
+                ws['!cols'] = colWidths;
+
+                // Truncate sheet name to 31 chars (Excel limit)
+                const sheetName = assetType.name.substring(0, 31);
+                XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+                sheetsCreated++;
+
+                console.log(`[Location Exporter] Created sheet for ${assetType.name}: ${assets.length} items`);
+            }
+        }
+    }
+
+    // Add summary to summary data
+    summaryData.push([]);
+    summaryData.push(['Total Assets', totalAssets]);
+    summaryData.push(['Sheets Created', sheetsCreated]);
+
+    // Create summary sheet (prepend it to the workbook)
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+    summaryWs['!cols'] = [{ wch: 25 }, { wch: 40 }, { wch: 25 }];
+
+    // Create master list sheet
+    const masterWs = XLSX.utils.aoa_to_sheet(masterListData);
+    masterWs['!cols'] = [{ wch: 30 }, { wch: 50 }, { wch: 20 }];
+
+    // Prepend summary and master list sheets
+    const tempWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(tempWorkbook, summaryWs, 'Summary');
+    XLSX.utils.book_append_sheet(tempWorkbook, masterWs, 'Master List');
+
+    // Copy all existing sheets
+    workbook.SheetNames.forEach(name => {
+        XLSX.utils.book_append_sheet(tempWorkbook, workbook.Sheets[name], name);
+    });
+
+    console.log(`[Location Exporter] Workbook created with ${sheetsCreated + 2} sheets (including Summary and Master List)`);
+    return tempWorkbook;
+}
+
+/**
+ * Convert location data to multiple CSV files
+ */
+async function convertLocationToCSVs(locationData, locationId, selectedAssets = null) {
+    const csvFiles = [];
+    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+
+    // Define asset types to export
+    const assetTypes = [
+        { key: 'custom_fields', name: 'Custom_Fields' },
+        { key: 'custom_values', name: 'Custom_Values' },
+        { key: 'tags', name: 'Tags' },
+        { key: 'pipelines', name: 'Pipelines' },
+        { key: 'calendars', name: 'Calendars' },
+        { key: 'campaigns', name: 'Campaigns' },
+        { key: 'forms', name: 'Forms' },
+        { key: 'surveys', name: 'Surveys' },
+        { key: 'workflow', name: 'Workflows' },
+        { key: 'text_templates', name: 'Text_Templates' },
+        { key: 'email_templates', name: 'Email_Templates' },
+        { key: 'funnels', name: 'Funnels' },
+        { key: 'links', name: 'Links' },
+        { key: 'folders', name: 'Folders' },
+        { key: 'teams', name: 'Teams' },
+        { key: 'membership_offers', name: 'Membership_Offers' },
+        { key: 'membership_products', name: 'Membership_Products' },
+        { key: 'triggers', name: 'Triggers' },
+        { key: 'knowledge_bases', name: 'Knowledge_Bases' },
+        { key: 'quizzes', name: 'Quizzes' },
+        { key: 'dashboards', name: 'Dashboards' },
+        { key: 'custom_objects', name: 'Custom_Objects' },
+        { key: 'certificates', name: 'Certificates' },
+        { key: 'review_settings', name: 'Review_Settings' },
+        { key: 'conversation_ai', name: 'Conversation_AI' },
+        { key: 'social_planner', name: 'Social_Planner' },
+        { key: 'sectionTemplates', name: 'Section_Templates' }
+    ];
+
+    // Filter asset types based on user selection
+    const assetsToExport = selectedAssets
+        ? assetTypes.filter(type => selectedAssets.includes(type.key))
+        : assetTypes;
+
+    // Process each asset type
+    for (const assetType of assetsToExport) {
+        const assets = locationData[assetType.key];
+
+        if (assets && assets.length > 0) {
+            const csv = convertAssetTypeToCSV(assets);
+            const filename = `Location_${locationId}_${assetType.name}_${timestamp}.csv`;
+
+            csvFiles.push({
+                filename: filename,
+                content: csv,
+                assetType: assetType.name,
+                count: assets.length
+            });
+
+            console.log(`[Location Exporter] Generated CSV for ${assetType.name}: ${assets.length} items`);
+        }
+    }
+
+    // Create a summary CSV
+    const summaryCSV = createLocationSummaryCSV(csvFiles, locationId);
+    csvFiles.unshift({
+        filename: `Location_${locationId}_SUMMARY_${timestamp}.csv`,
+        content: summaryCSV,
+        assetType: 'Summary',
+        count: csvFiles.length
+    });
+
+    return csvFiles;
+}
+
+/**
+ * Create summary CSV for location export
+ */
+function createLocationSummaryCSV(csvFiles, locationId) {
+    let csv = 'GHL Location Assets Export Summary\n\n';
+    csv += 'Location ID,' + escapeCSVValue(locationId) + '\n';
+    csv += 'Export Type,Live Location Assets\n';
+    csv += 'Export Date,' + new Date().toISOString() + '\n\n';
+    csv += 'Asset Type,Count,Filename\n';
+
+    for (const file of csvFiles) {
+        if (file.assetType !== 'Summary') {
+            csv += `${file.assetType},${file.count},${file.filename}\n`;
+        }
+    }
+
+    const totalAssets = csvFiles.reduce((sum, f) => f.assetType !== 'Summary' ? sum + f.count : sum, 0);
+    csv += `\nTotal Assets,${totalAssets}\n`;
+    csv += `Files Generated,${csvFiles.length}\n`;
+
+    return csv;
+}
+
+/**
+ * Download Excel file for location export
+ */
+function downloadLocationExcel(workbook, locationId) {
+    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+    const filename = `Location_${locationId}_Assets_${timestamp}.xlsx`;
+
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    console.log('[Location Exporter] Downloaded:', filename);
 }
 
 /**
@@ -313,7 +913,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(35, progressMsg);
 
                 const enrichedWorkflows = await enrichWorkflowsWithAI(assets, companyId, snapshotId);
-                const sheetData = convertWorkflowsToArray(enrichedWorkflows);
+                // Filter to only include workflows that exist in the original snapshot
+                const filteredWorkflows = filterBySnapshotIds(enrichedWorkflows, assets);
+                const sheetData = convertWorkflowsToArray(filteredWorkflows);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 // Set custom column widths for workflows - matched to column order
@@ -369,7 +971,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(40, `Enriching ${assets.length} forms...`);
 
                 const enrichedForms = await enrichForms(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedForms);
+                // Filter to only include forms that exist in the original snapshot
+                const filteredForms = filterBySnapshotIds(enrichedForms, assets);
+                const sheetData = convertAssetTypeToArray(filteredForms);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -385,9 +989,11 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(45, `Starting funnel enrichment for ${assets.length} funnel${assets.length > 1 ? 's' : ''}... This may take a while.`);
 
                 const { enrichedFunnels, allPages, allSteps, allElementCounts } = await enrichFunnels(assets, locationId);
+                // Filter to only include funnels that exist in the original snapshot
+                const filteredFunnels = filterBySnapshotIds(enrichedFunnels, assets);
 
                 // Create main Funnels sheet
-                const sheetData = convertAssetTypeToArray(enrichedFunnels);
+                const sheetData = convertAssetTypeToArray(filteredFunnels);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
                 worksheet['!cols'] = colWidths;
@@ -440,7 +1046,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(50, `Enriching ${assets.length} calendars...`);
 
                 const enrichedCalendars = await enrichCalendars(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedCalendars);
+                // Filter to only include calendars that exist in the original snapshot
+                const filteredCalendars = filterBySnapshotIds(enrichedCalendars, assets);
+                const sheetData = convertAssetTypeToArray(filteredCalendars);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -484,7 +1092,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(55, `Enriching ${assets.length} pipelines...`);
 
                 const enrichedPipelines = await enrichPipelines(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedPipelines);
+                // Filter to only include pipelines that exist in the original snapshot
+                const filteredPipelines = filterBySnapshotIds(enrichedPipelines, assets);
+                const sheetData = convertAssetTypeToArray(filteredPipelines);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -497,7 +1107,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 // Also create a detailed Pipeline Stages sheet
                 console.log('[Snapshot Exporter] Creating Pipeline Stages sheet...');
                 sendProgressUpdate(57, `Extracting pipeline stages...`);
-                const pipelineStages = extractPipelineStages(enrichedPipelines);
+                const pipelineStages = extractPipelineStages(filteredPipelines);
                 if (pipelineStages && pipelineStages.length > 0) {
                     const stagesSheetData = convertAssetTypeToArray(pipelineStages);
                     const stagesWorksheet = XLSX.utils.aoa_to_sheet(stagesSheetData);
@@ -514,7 +1124,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(60, `Enriching ${assets.length} email templates...`);
 
                 const enrichedTemplates = await enrichEmailTemplates(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedTemplates);
+                // Filter to only include email templates that exist in the original snapshot
+                const filteredTemplates = filterBySnapshotIds(enrichedTemplates, assets);
+                const sheetData = convertAssetTypeToArray(filteredTemplates);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -522,7 +1134,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Email Templates');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Email Templates: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Email Templates: ${filteredTemplates.length} items`);
 
                 // Also create an Email Builder sheet
                 console.log('[Snapshot Exporter] Creating Email Builder sheet...');
@@ -544,7 +1156,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(65, `Enriching ${assets.length} surveys...`);
 
                 const enrichedSurveys = await enrichSurveys(assets);
-                const sheetData = convertAssetTypeToArray(enrichedSurveys);
+                // Filter to only include surveys that exist in the original snapshot
+                const filteredSurveys = filterBySnapshotIds(enrichedSurveys, assets);
+                const sheetData = convertAssetTypeToArray(filteredSurveys);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -552,7 +1166,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Surveys');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Surveys: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Surveys: ${filteredSurveys.length} items`);
             }
             // Special handling for Campaigns - enrich with statistics
             else if (assetType.key === 'campaigns' && locationId) {
@@ -560,7 +1174,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(68, `Enriching ${assets.length} campaigns...`);
 
                 const enrichedCampaigns = await enrichCampaigns(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedCampaigns);
+                // Filter to only include campaigns that exist in the original snapshot
+                const filteredCampaigns = filterBySnapshotIds(enrichedCampaigns, assets);
+                const sheetData = convertAssetTypeToArray(filteredCampaigns);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -568,7 +1184,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Campaigns');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Campaigns: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Campaigns: ${filteredCampaigns.length} items`);
             }
             // Special handling for Links - enrich with click statistics
             else if (assetType.key === 'links' && locationId) {
@@ -576,7 +1192,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(70, `Enriching ${assets.length} links...`);
 
                 const enrichedLinks = await enrichLinks(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedLinks);
+                // Filter to only include links that exist in the original snapshot
+                const filteredLinks = filterBySnapshotIds(enrichedLinks, assets);
+                const sheetData = convertAssetTypeToArray(filteredLinks);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -584,15 +1202,17 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Links');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Links: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Links: ${filteredLinks.length} items`);
             }
             // Special handling for Text Templates - enrich with content details
             else if (assetType.key === 'text_templates' && locationId) {
                 console.log('[Snapshot Exporter] ✅ TEXT TEMPLATE ENRICHMENT TRIGGERED');
                 sendProgressUpdate(72, `Enriching ${assets.length} text templates...`);
 
-                const enrichedTemplates = await enrichTextTemplates(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedTemplates);
+                const enrichedTextTemplates = await enrichTextTemplates(assets, locationId);
+                // Filter to only include text templates that exist in the original snapshot
+                const filteredTextTemplates = filterBySnapshotIds(enrichedTextTemplates, assets);
+                const sheetData = convertAssetTypeToArray(filteredTextTemplates);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -600,7 +1220,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Text_Templates');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Text Templates: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Text Templates: ${filteredTextTemplates.length} items`);
             }
             // Special handling for Membership Offers - enrich with pricing and products
             else if (assetType.key === 'membership_offers' && locationId) {
@@ -608,7 +1228,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(75, `Enriching ${assets.length} membership offers...`);
 
                 const enrichedOffers = await enrichMembershipOffers(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedOffers);
+                // Filter to only include membership offers that exist in the original snapshot
+                const filteredOffers = filterBySnapshotIds(enrichedOffers, assets);
+                const sheetData = convertAssetTypeToArray(filteredOffers);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -616,7 +1238,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Membership_Offers');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Membership Offers: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Membership Offers: ${filteredOffers.length} items`);
             }
             // Special handling for Custom Fields - enrich with folder and model data
             else if (assetType.key === 'custom_fields' && locationId) {
@@ -624,7 +1246,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(77, `Enriching ${assets.length} custom fields...`);
 
                 const enrichedFields = await enrichCustomFields(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedFields);
+                // Filter to only include custom fields that exist in the original snapshot
+                const filteredFields = filterBySnapshotIds(enrichedFields, assets);
+                const sheetData = convertAssetTypeToArray(filteredFields);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -632,7 +1256,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Fields');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Fields: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Fields: ${filteredFields.length} items`);
             }
             // Special handling for Custom Values - enrich with organization details
             else if (assetType.key === 'custom_values' && locationId) {
@@ -640,7 +1264,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(78, `Enriching ${assets.length} custom values...`);
 
                 const enrichedValues = await enrichCustomValues(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedValues);
+                // Filter to only include custom values that exist in the original snapshot
+                const filteredValues = filterBySnapshotIds(enrichedValues, assets);
+                const sheetData = convertAssetTypeToArray(filteredValues);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -648,7 +1274,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Values');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Values: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Values: ${filteredValues.length} items`);
             }
             // Special handling for Tags - enrich with usage statistics
             else if (assetType.key === 'tags' && locationId) {
@@ -656,7 +1282,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(79, `Enriching ${assets.length} tags...`);
 
                 const enrichedTags = await enrichTags(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedTags);
+                // Filter to only include tags that exist in the original snapshot
+                const filteredTags = filterBySnapshotIds(enrichedTags, assets);
+                const sheetData = convertAssetTypeToArray(filteredTags);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -664,7 +1292,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Tags');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Tags: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Tags: ${filteredTags.length} items`);
             }
             // Special handling for Knowledge Bases - enrich with files and content
             else if (assetType.key === 'knowledge_bases' && locationId) {
@@ -672,7 +1300,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(80, `Enriching ${assets.length} knowledge bases...`);
 
                 const enrichedKBs = await enrichKnowledgeBases(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedKBs);
+                // Filter to only include knowledge bases that exist in the original snapshot
+                const filteredKBs = filterBySnapshotIds(enrichedKBs, assets);
+                const sheetData = convertAssetTypeToArray(filteredKBs);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -680,7 +1310,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Knowledge_Bases');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Knowledge Bases: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Knowledge Bases: ${filteredKBs.length} items`);
             }
             // Special handling for Conversation AI - enrich with configuration and metrics
             else if (assetType.key === 'conversation_ai' && locationId) {
@@ -688,7 +1318,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(81, `Enriching ${assets.length} AI employees...`);
 
                 const enrichedEmployees = await enrichConversationAI(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedEmployees);
+                // Filter to only include AI employees that exist in the original snapshot
+                const filteredEmployees = filterBySnapshotIds(enrichedEmployees, assets);
+                const sheetData = convertAssetTypeToArray(filteredEmployees);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -696,7 +1328,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Conversation_AI');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Conversation AI: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Conversation AI: ${filteredEmployees.length} items`);
             }
             // Special handling for Custom Objects - enrich with schema details
             else if (assetType.key === 'custom_objects' && locationId) {
@@ -704,7 +1336,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(82, `Enriching ${assets.length} custom objects...`);
 
                 const enrichedObjects = await enrichCustomObjects(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedObjects);
+                // Filter to only include custom objects that exist in the original snapshot
+                const filteredObjects = filterBySnapshotIds(enrichedObjects, assets);
+                const sheetData = convertAssetTypeToArray(filteredObjects);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -712,7 +1346,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Custom_Objects');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Objects: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Custom Objects: ${filteredObjects.length} items`);
             }
             // Special handling for Dashboards - enrich with widgets and permissions
             else if (assetType.key === 'dashboards' && locationId) {
@@ -720,7 +1354,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(83, `Enriching ${assets.length} dashboards...`);
 
                 const enrichedDashboards = await enrichDashboards(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedDashboards);
+                // Filter to only include dashboards that exist in the original snapshot
+                const filteredDashboards = filterBySnapshotIds(enrichedDashboards, assets);
+                const sheetData = convertAssetTypeToArray(filteredDashboards);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -728,7 +1364,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Dashboards');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Dashboards: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Dashboards: ${filteredDashboards.length} items`);
             }
             // Special handling for Quizzes - enrich using forms API (quizzes are a type of form)
             else if (assetType.key === 'quizzes' && locationId) {
@@ -736,7 +1372,9 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
                 sendProgressUpdate(84, `Enriching ${assets.length} quizzes...`);
 
                 const enrichedQuizzes = await enrichForms(assets, locationId);
-                const sheetData = convertAssetTypeToArray(enrichedQuizzes);
+                // Filter to only include quizzes that exist in the original snapshot
+                const filteredQuizzes = filterBySnapshotIds(enrichedQuizzes, assets);
+                const sheetData = convertAssetTypeToArray(filteredQuizzes);
                 const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
                 const colWidths = sheetData[0].map(() => ({ wch: 20 }));
@@ -744,7 +1382,7 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Quizzes');
                 sheetsCreated++;
-                console.log(`[Snapshot Exporter] Created enriched sheet for Quizzes: ${assets.length} items`);
+                console.log(`[Snapshot Exporter] Created enriched sheet for Quizzes: ${filteredQuizzes.length} items`);
             }
             else {
                 // Normal processing for other asset types
@@ -812,7 +1450,46 @@ async function convertSnapshotToExcel(snapshotData, snapshotId, companyId, selec
 }
 
 /**
+ * Filter enriched assets to only include those with IDs present in the original snapshot data.
+ * This ensures that assets from the subaccount that are not part of the snapshot are excluded.
+ * @param {Array} enrichedAssets - The array of enriched assets (from subaccount API)
+ * @param {Array} originalSnapshotAssets - The original snapshot assets (contains the IDs that belong to the snapshot)
+ * @returns {Array} Filtered array containing only assets whose IDs exist in the original snapshot
+ */
+function filterBySnapshotIds(enrichedAssets, originalSnapshotAssets) {
+    if (!enrichedAssets || !originalSnapshotAssets) {
+        return enrichedAssets || [];
+    }
+
+    // Extract IDs from original snapshot assets
+    const snapshotIds = new Set();
+    originalSnapshotAssets.forEach(asset => {
+        const id = asset._id || asset.id || asset.ID;
+        if (id) {
+            snapshotIds.add(id);
+        }
+    });
+
+    console.log(`[Filter] Original snapshot has ${snapshotIds.size} asset IDs, enriched has ${enrichedAssets.length} assets`);
+
+    // Filter enriched assets to only include those with IDs in the snapshot
+    const filtered = enrichedAssets.filter(asset => {
+        const id = asset._id || asset.id || asset.ID;
+        return id && snapshotIds.has(id);
+    });
+
+    const removedCount = enrichedAssets.length - filtered.length;
+    if (removedCount > 0) {
+        console.log(`[Filter] Removed ${removedCount} assets not in snapshot`);
+    }
+
+    return filtered;
+}
+
+/**
  * Convert asset type to 2D array for Excel
+ * @param {Array} assets - Array of asset objects
+ * Uses module-level _includeFullEnrichmentData setting to determine if JSON column is included
  */
 function convertAssetTypeToArray(assets) {
     if (!assets || assets.length === 0) {
@@ -823,7 +1500,7 @@ function convertAssetTypeToArray(assets) {
     const allKeys = new Set();
     assets.forEach(asset => {
         Object.keys(asset).forEach(key => {
-            // Exclude fullEnrichmentData from regular columns - it will be added at the end
+            // Exclude fullEnrichmentData from regular columns - it will be added at the end if enabled
             if (key !== 'fullEnrichmentData') {
                 allKeys.add(key);
             }
@@ -856,8 +1533,10 @@ function convertAssetTypeToArray(assets) {
 
     headers = [...priorityHeaders, ...headers];
 
-    // Add "Full Enrichment Data" as the last column
-    headers.push('Full Enrichment Data');
+    // Add "Full Enrichment Data" as the last column only if enabled (uses module-level setting)
+    if (_includeFullEnrichmentData) {
+        headers.push('Full Enrichment Data');
+    }
 
     // Create data array starting with headers
     const dataArray = [headers];
@@ -869,6 +1548,11 @@ function convertAssetTypeToArray(assets) {
                 // Return the full enrichment data as JSON string, truncated to Excel limit
                 const jsonString = asset.fullEnrichmentData ? JSON.stringify(asset.fullEnrichmentData, null, 2) : '';
                 return truncateToExcelLimit(jsonString);
+            }
+            // Normalize ID field - check both 'id' and '_id' for ID columns
+            if (header === 'id' || header === '_id') {
+                const value = asset.id || asset._id;
+                return formatValueForExcel(value);
             }
             const value = asset[header];
             return formatValueForExcel(value);
@@ -1402,6 +2086,82 @@ async function fetchSnapshotsList(companyId) {
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     console.log('[Snapshot Exporter] Chrome message received:', request.action);
 
+    // Handle GHL page detection check
+    if (request.action === 'checkGHLPage') {
+        console.log('[Snapshot Exporter] Checking if this is a GHL page...');
+
+        // Direct detection: check URL and domain (fast and reliable)
+        const urlMatch = window.location.href.match(/\/location\/([A-Za-z0-9_-]{18,28})/);
+        const urlLocationId = urlMatch ? urlMatch[1] : null;
+
+        const hostname = window.location.hostname;
+        const isGHLDomain = hostname.includes('gohighlevel.com') ||
+                           hostname.includes('leadconnectorhq.com') ||
+                           hostname.includes('highlevel.com');
+
+        // It's a GHL page if we found a locationId in URL OR it's a known GHL domain
+        const isGHLPage = !!urlLocationId || isGHLDomain;
+
+        console.log('[Snapshot Exporter] Direct GHL detection:', {
+            hostname,
+            isGHLDomain,
+            urlLocationId,
+            isGHLPage
+        });
+
+        // If it's a GHL page, try to get additional data from revex (for agency admin company fallback)
+        if (isGHLPage && window.ghlUtilsRevex && window.ghlUtilsRevex.waitForGHLDetection) {
+            window.ghlUtilsRevex.waitForGHLDetection(3000)
+                .then(result => {
+                    // Use URL locationId first, then revex detection result
+                    const finalLocationId = urlLocationId || result.locationId;
+                    console.log('[Snapshot Exporter] Revex detection complete:', {
+                        urlLocationId,
+                        revexLocationId: result.locationId,
+                        finalLocationId,
+                        hasAuthToken: result.hasAuthToken
+                    });
+                    sendResponse({
+                        success: true,
+                        isGHLPage: true,
+                        hasAuthToken: result.hasAuthToken,
+                        locationId: finalLocationId
+                    });
+                })
+                .catch(error => {
+                    console.warn('[Snapshot Exporter] Revex detection failed, using URL detection:', error.message);
+                    // Fall back to URL detection only
+                    sendResponse({
+                        success: true,
+                        isGHLPage: true,
+                        hasAuthToken: false,
+                        locationId: urlLocationId
+                    });
+                });
+        } else if (isGHLPage) {
+            // GHL page but revex not available yet - use direct detection
+            let finalLocationId = urlLocationId;
+            if (!finalLocationId && window.ghlUtilsRevex && window.ghlUtilsRevex.getLocationId) {
+                finalLocationId = window.ghlUtilsRevex.getLocationId();
+            }
+            sendResponse({
+                success: true,
+                isGHLPage: true,
+                hasAuthToken: false,
+                locationId: finalLocationId
+            });
+        } else {
+            // Not a GHL page
+            sendResponse({
+                success: true,
+                isGHLPage: false,
+                hasAuthToken: false,
+                locationId: null
+            });
+        }
+        return true; // Will respond asynchronously
+    }
+
     if (request.action === 'exportSnapshotWithIds') {
         console.log('[Snapshot Exporter] Starting export with IDs:', request.snapshotId, request.companyId, request.format, 'selectedAssets:', request.selectedAssets);
         exportSnapshotWithIds(request.snapshotId, request.companyId, request.format || 'xlsx', request.selectedAssets)
@@ -1430,6 +2190,20 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         return true; // Will respond asynchronously
     }
 
+    if (request.action === 'exportLocationAssets') {
+        console.log('[Location Exporter] Starting location assets export:', request.locationId, request.format, 'selectedAssets:', request.selectedAssets);
+        exportLocationAssets(request.locationId, request.format || 'xlsx', request.selectedAssets)
+            .then(result => {
+                console.log('[Location Exporter] Export successful:', result);
+                sendResponse({ success: true, result });
+            })
+            .catch(error => {
+                console.error('[Location Exporter] Export failed:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+        return true; // Will respond asynchronously
+    }
+
     console.log('[Snapshot Exporter] Unknown action:', request.action);
     return false;
 });
@@ -1438,7 +2212,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 document.addEventListener('ghl-snapshot-export', async (event) => {
     console.log('[Snapshot Exporter] Page context event received:', event.detail.action);
 
-    const { action, snapshotId, companyId, format, selectedAssets } = event.detail;
+    const { action, snapshotId, companyId, locationId, format, selectedAssets } = event.detail;
 
     try {
         let result;
@@ -1447,6 +2221,8 @@ document.addEventListener('ghl-snapshot-export', async (event) => {
             result = await exportCurrentSnapshot();
         } else if (action === 'exportSnapshotWithIds') {
             result = await exportSnapshotWithIds(snapshotId, companyId, format || 'xlsx', selectedAssets);
+        } else if (action === 'exportLocationAssets') {
+            result = await exportLocationAssets(locationId, format || 'xlsx', selectedAssets);
         } else {
             throw new Error('Unknown action: ' + action);
         }
@@ -1491,8 +2267,14 @@ async function analyzeWorkflowWithAI(workflowData) {
         const apiKey = result.openaiApiKey;
         const aiEnabled = result.aiAnalysisEnabled === true;
 
+        console.log('[AI Analysis] Settings check:', {
+            aiEnabled: aiEnabled,
+            hasApiKey: !!apiKey,
+            apiKeyPrefix: apiKey ? apiKey.substring(0, 7) + '...' : 'none'
+        });
+
         if (!aiEnabled) {
-            console.log('[AI Analysis] AI analysis disabled in settings');
+            console.log('[AI Analysis] AI analysis disabled in settings - check the "Enable AI analysis" checkbox');
             return {
                 description: '',
                 setupNotes: ''
@@ -1500,7 +2282,7 @@ async function analyzeWorkflowWithAI(workflowData) {
         }
 
         if (!apiKey) {
-            console.log('[AI Analysis] No OpenAI API key found');
+            console.log('[AI Analysis] No OpenAI API key found - enter your key in the popup settings');
             return {
                 description: '',
                 setupNotes: ''
@@ -1547,21 +2329,28 @@ Be specific about:
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+            const errorData = await response.json().catch(() => ({}));
+            const errorMsg = errorData.error?.message || response.statusText;
+            console.error('[AI Analysis] OpenAI API error:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorData.error
+            });
+            throw new Error(`OpenAI API error (${response.status}): ${errorMsg}`);
         }
 
         const data = await response.json();
         const aiResponse = data.choices[0]?.message?.content || '';
 
-        console.log('[AI Analysis] AI response received');
+        console.log('[AI Analysis] AI response received successfully');
 
         // Parse the response
         const parsed = parseAIWorkflowResponse(aiResponse);
         return parsed;
 
     } catch (error) {
-        console.error('[AI Analysis] Error:', error);
+        console.error('[AI Analysis] Error during AI analysis:', error.message);
+        console.error('[AI Analysis] Full error:', error);
         return {
             description: '',
             setupNotes: ''
@@ -1625,11 +2414,12 @@ function parseAIWorkflowResponse(aiResponse) {
 /**
  * Enrich workflows with AI-generated descriptions and setup notes
  * @param {Array} workflows - Basic workflow data from snapshot
- * @param {string} companyId - Company/Location ID
- * @param {string} snapshotId - Snapshot ID
+ * @param {string} companyId - Company/Location ID (optional if locationId provided)
+ * @param {string} snapshotId - Snapshot ID (optional if locationId provided)
+ * @param {string} providedLocationId - Optional locationId for direct location exports
  * @returns {Promise<Array>} - Enriched workflows with AI analysis
  */
-async function enrichWorkflowsWithAI(workflows, companyId, snapshotId) {
+async function enrichWorkflowsWithAI(workflows, companyId, snapshotId, providedLocationId = null) {
     console.log(`[Workflow Enrichment] Enriching ${workflows.length} workflows`);
 
     // Check if AI is enabled
@@ -1642,25 +2432,32 @@ async function enrichWorkflowsWithAI(workflows, companyId, snapshotId) {
         console.log('[Workflow Enrichment] AI analysis disabled - will enrich with API data only');
     }
 
-    // First, fetch the locationId from the snapshot details
-    console.log('[Workflow Enrichment] Fetching locationId from snapshot details...');
-    const snapshotDetailsEndpoint = `/snapshots/snapshotDetails/${snapshotId}?companyId=${companyId}`;
+    let locationId = providedLocationId;
 
-    let locationId = null;
-    try {
-        await window.ghlUtilsRevex.waitForReady();
-        const snapshotDetailsResponse = await window.ghlUtilsRevex.get(snapshotDetailsEndpoint);
+    // If locationId not provided directly, fetch from snapshot details
+    if (!locationId && snapshotId && companyId) {
+        console.log('[Workflow Enrichment] Fetching locationId from snapshot details...');
+        const snapshotDetailsEndpoint = `/snapshots/snapshotDetails/${snapshotId}?companyId=${companyId}`;
 
-        if (snapshotDetailsResponse && snapshotDetailsResponse.data && snapshotDetailsResponse.data.locationId) {
-            locationId = snapshotDetailsResponse.data.locationId;
-            console.log('[Workflow Enrichment] ✅ Found locationId:', locationId);
-        } else {
-            console.error('[Workflow Enrichment] No locationId found in snapshot details');
-            throw new Error('No locationId found in snapshot details');
+        try {
+            await window.ghlUtilsRevex.waitForReady();
+            const snapshotDetailsResponse = await window.ghlUtilsRevex.get(snapshotDetailsEndpoint);
+
+            if (snapshotDetailsResponse && snapshotDetailsResponse.data && snapshotDetailsResponse.data.locationId) {
+                locationId = snapshotDetailsResponse.data.locationId;
+                console.log('[Workflow Enrichment] ✅ Found locationId:', locationId);
+            } else {
+                console.error('[Workflow Enrichment] No locationId found in snapshot details');
+                throw new Error('No locationId found in snapshot details');
+            }
+        } catch (error) {
+            console.error('[Workflow Enrichment] Failed to fetch snapshot details:', error);
+            throw error;
         }
-    } catch (error) {
-        console.error('[Workflow Enrichment] Failed to fetch snapshot details:', error);
-        throw error;
+    } else if (locationId) {
+        console.log('[Workflow Enrichment] ✅ Using provided locationId:', locationId);
+    } else {
+        throw new Error('No locationId provided and no snapshotId/companyId to fetch it from');
     }
 
     const enrichedWorkflows = [];
@@ -4529,14 +5326,19 @@ function convertWorkflowsToArray(workflows) {
         });
     });
 
-    // Build final column order: priority columns + other columns + Full Enrichment Data
+    // Build final column order: priority columns + other columns + Full Enrichment Data (if enabled)
     const headers = [
         ...priorityColumns.map(col => columnNames[col] || col),
-        ...Array.from(allKeys).sort(),
-        'Full Enrichment Data'
+        ...Array.from(allKeys).sort()
     ];
 
-    const fullColumnKeys = [...priorityColumns, ...Array.from(allKeys).sort(), 'fullEnrichmentData'];
+    const fullColumnKeys = [...priorityColumns, ...Array.from(allKeys).sort()];
+
+    // Add Full Enrichment Data column only if enabled (uses module-level setting)
+    if (_includeFullEnrichmentData) {
+        headers.push('Full Enrichment Data');
+        fullColumnKeys.push('fullEnrichmentData');
+    }
 
     // Create data array starting with headers
     const dataArray = [headers];

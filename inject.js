@@ -83,10 +83,10 @@
           authToken = authToken.replace(/^Bearer\s+/i, '');
           console.log('[Inject.js] Token found in localStorage.a (using authToken), length:', authToken.length);
 
-          // Also extract locationId/companyId from the auth data
+          // Store companyId for later use as last resort fallback
           if (authData.companyId) {
-            locationId = authData.companyId;
-            console.log('[Inject.js] Company ID from auth data:', locationId);
+            window._ghlAuthCompanyId = authData.companyId;
+            console.log('[Inject.js] Company ID found in auth data (will use as last fallback):', authData.companyId);
           }
         } else {
           console.log('[Inject.js] No jwt or authToken field in parsed data');
@@ -115,6 +115,32 @@
     }
   } catch(e) {
     console.error('[Inject.js] localStorage not accessible:', e);
+  }
+
+  // Fallback 1: extract locationId from URL if not found yet
+  if (!locationId) {
+    const urlMatch = window.location.href.match(/\/location\/([A-Za-z0-9_-]{18,28})/);
+    if (urlMatch && urlMatch[1]) {
+      locationId = urlMatch[1];
+      hasGHLData = true; // URL with /location/ means this is a GHL page
+      console.log('[Inject.js] LocationId extracted from URL:', locationId);
+    }
+  }
+
+  // Fallback 2 (last resort): use companyId from auth data
+  if (!locationId && window._ghlAuthCompanyId) {
+    locationId = window._ghlAuthCompanyId;
+    console.log('[Inject.js] LocationId from auth data companyId (last resort):', locationId);
+  }
+
+  // Also check if this is a known GHL domain
+  const hostname = window.location.hostname;
+  const isGHLDomain = hostname.includes('gohighlevel.com') ||
+                      hostname.includes('leadconnectorhq.com') ||
+                      hostname.includes('highlevel.com');
+  if (isGHLDomain && !hasGHLData) {
+    hasGHLData = true;
+    console.log('[Inject.js] GHL domain detected:', hostname);
   }
 
   console.log('[Inject.js] Final state - hasAuth:', !!authToken, 'hasData:', hasGHLData, 'locationId:', locationId);
