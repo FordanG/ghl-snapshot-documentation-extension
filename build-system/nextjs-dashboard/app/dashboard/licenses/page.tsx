@@ -13,6 +13,7 @@ interface License {
   max_uses: number | null
   is_active: boolean
   is_free: boolean
+  price: number | null
   created_at: string
   expires_at: string | null
   notes: string | null
@@ -30,6 +31,8 @@ export default function LicensesPage() {
   const licenses: License[] = Array.isArray(licensesRaw) ? licensesRaw : []
   const [filtered, setFiltered] = useState<License[]>([])
   const [search, setSearch] = useState('')
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState('')
 
   useEffect(() => {
     const q = search.toLowerCase()
@@ -150,9 +153,36 @@ export default function LicensesPage() {
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
                             🎁 Free
                           </span>
+                        ) : editingPriceId === l.id ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            autoFocus
+                            value={editingPriceValue}
+                            onChange={e => setEditingPriceValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                const val = parseFloat(editingPriceValue)
+                                if (!isNaN(val) && val >= 0) patch(l.id, { price: val })
+                                setEditingPriceId(null)
+                              }
+                              if (e.key === 'Escape') setEditingPriceId(null)
+                            }}
+                            onBlur={() => {
+                              const val = parseFloat(editingPriceValue)
+                              if (!isNaN(val) && val >= 0) patch(l.id, { price: val })
+                              setEditingPriceId(null)
+                            }}
+                            className="w-16 px-1.5 py-0.5 text-xs font-semibold rounded-full border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                          />
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
-                            $97
+                          <span
+                            onClick={() => { setEditingPriceId(l.id); setEditingPriceValue(String(l.price ?? 97)) }}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 cursor-pointer hover:ring-1 hover:ring-violet-400 transition"
+                            title="Click to edit price"
+                          >
+                            ${l.price ?? 97}
                           </span>
                         )}
                       </td>

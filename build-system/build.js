@@ -3,41 +3,45 @@ const path = require('path');
 const { execSync } = require('child_process');
 const JavaScriptObfuscator = require('javascript-obfuscator');
 const { minify } = require('terser');
+const archiver = require('archiver');
 
 // Configuration
 const SOURCE_DIR = path.join(__dirname, '..');
 const OUTPUT_DIR = path.join(__dirname, 'dist');
+const BUILDS_DIR = path.join(__dirname, 'builds');
 
-// Files to process
+// Debug mode - set to true to keep console.log statements in the build
+const DEBUG = false;
+
+// Generate version string (YYYY-MM-DD-HHMM)
+function getVersionString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}-${hours}${minutes}`;
+}
+
+const VERSION = getVersionString();
+
+// Files to process (obfuscate and minify)
 const JS_FILES = [
-  'api-wrapper.js',
   'background.js',
-  'bulk-contact-editor.js',
-  'contact-field-inspector.js',
-  'content-custom-domain.js',
-  'content-test.js',
-  'content.js',
-  'detect-ghl.js',
   'inject.js',
   'license-manager.js',
   'page-exporter.js',
   'popup.js',
-  'quick-navigation.js',
   'revex-auth.js',
-  'snapshot-exporter.js',
-  'workflow-analyzer.js',
-  'workflow-viewer.js'
+  'snapshot-exporter.js'
 ];
 
-// Files/folders to copy as-is
+// Files/folders to copy as-is (no obfuscation)
 const COPY_ITEMS = [
   'manifest.json',
   'popup.html',
-  'popup.css',
-  'command-palette.css',
-  'simple-popup.css',
-  'workflow-viewer.css',
-  'xlsx.full.min.js',
+  'xlsx-js-style.min.js',
   'icons'
 ];
 
@@ -74,90 +78,172 @@ const OBFUSCATOR_OPTIONS = {
   unicodeEscapeSequence: false
 };
 
-// Clean and create output directory
-if (fs.existsSync(OUTPUT_DIR)) {
-  fs.rmSync(OUTPUT_DIR, { recursive: true });
-}
-fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+// Helper to create zip archive
+function createZip(sourceDir, zipPath) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
 
-console.log('🔨 Starting build process...\n');
-
-// Process JavaScript files
-console.log('📦 Obfuscating and minifying JavaScript files...');
-JS_FILES.forEach(file => {
-  const sourcePath = path.join(SOURCE_DIR, file);
-  const outputPath = path.join(OUTPUT_DIR, file);
-
-  if (!fs.existsSync(sourcePath)) {
-    console.log(`⚠️  Skipping ${file} (not found)`);
-    return;
-  }
-
-  try {
-    const code = fs.readFileSync(sourcePath, 'utf8');
-
-    // First obfuscate
-    const obfuscated = JavaScriptObfuscator.obfuscate(code, OBFUSCATOR_OPTIONS);
-
-    // Then minify further
-    const minified = minify(obfuscated.getObfuscatedCode(), {
-      compress: {
-        dead_code: true,
-        drop_console: true,
-        drop_debugger: true,
-        keep_classnames: false,
-        keep_fnames: false
-      },
-      mangle: {
-        toplevel: false
-      }
+    output.on('close', () => {
+      resolve(archive.pointer());
     });
 
-    fs.writeFileSync(outputPath, minified.code || obfuscated.getObfuscatedCode());
-    console.log(`✅ ${file}`);
-  } catch (error) {
-    console.error(`❌ Error processing ${file}:`, error.message);
+    archive.on('error', reject);
+    archive.pipe(output);
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
+}
+
+// Copy files to a directory
+function copyFiles(destDir, includeJs = true) {
+  // Copy JS files
+  if (includeJs) {
+    JS_FILES.forEach(file => {
+      const sourcePath = path.join(SOURCE_DIR, file);
+      const outputPath = path.join(destDir, file);
+      if (fs.existsSync(sourcePath)) {
+        fs.copyFileSync(sourcePath, outputPath);
+      }
+    });
   }
-});
 
-// Copy other files
-console.log('\n📋 Copying other files...');
-COPY_ITEMS.forEach(item => {
-  const sourcePath = path.join(SOURCE_DIR, item);
-  const outputPath = path.join(OUTPUT_DIR, item);
-
-  if (!fs.existsSync(sourcePath)) {
-    console.log(`⚠️  Skipping ${item} (not found)`);
-    return;
-  }
-
-  try {
-    const stats = fs.statSync(sourcePath);
-
-    if (stats.isDirectory()) {
-      // Copy directory recursively
-      fs.cpSync(sourcePath, outputPath, { recursive: true });
-      console.log(`✅ ${item}/ (directory)`);
-    } else {
-      // Copy file
-      fs.copyFileSync(sourcePath, outputPath);
-      console.log(`✅ ${item}`);
+  // Copy other items
+  COPY_ITEMS.forEach(item => {
+    const sourcePath = path.join(SOURCE_DIR, item);
+    const outputPath = path.join(destDir, item);
+    if (fs.existsSync(sourcePath)) {
+      const stats = fs.statSync(sourcePath);
+      if (stats.isDirectory()) {
+        fs.cpSync(sourcePath, outputPath, { recursive: true });
+      } else {
+        fs.copyFileSync(sourcePath, outputPath);
+      }
     }
-  } catch (error) {
-    console.error(`❌ Error copying ${item}:`, error.message);
+  });
+}
+
+async function build() {
+  console.log(`🔨 Starting build process (version: ${VERSION})...`);
+  console.log(`🔧 Debug mode: ${DEBUG ? 'ON (console logs kept)' : 'OFF (console logs removed)'}\n`);
+
+  // Ensure builds directory exists
+  if (!fs.existsSync(BUILDS_DIR)) {
+    fs.mkdirSync(BUILDS_DIR, { recursive: true });
   }
-});
 
-// Create zip file
-console.log('\n📦 Creating distribution zip...');
-const archiver = require('archiver');
-const zipPath = path.join(__dirname, 'snapshot-ai.zip');
-const output = fs.createWriteStream(zipPath);
-const archive = archiver('zip', { zlib: { level: 9 } });
+  // Clean and create output directory for obfuscated build
+  if (fs.existsSync(OUTPUT_DIR)) {
+    fs.rmSync(OUTPUT_DIR, { recursive: true });
+  }
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-output.on('close', () => {
-  console.log(`✅ Created ${zipPath}`);
-  console.log(`📊 Total size: ${(archive.pointer() / 1024).toFixed(2)} KB`);
+  // Create temporary directory for source build
+  const sourceOutputDir = path.join(__dirname, 'dist-source');
+  if (fs.existsSync(sourceOutputDir)) {
+    fs.rmSync(sourceOutputDir, { recursive: true });
+  }
+  fs.mkdirSync(sourceOutputDir, { recursive: true });
+
+  // === BUILD 1: Non-obfuscated (source) ===
+  console.log('📦 Creating non-obfuscated (source) build...');
+  copyFiles(sourceOutputDir, true);
+
+  const sourceZipPath = path.join(BUILDS_DIR, `snapshot-ai-v${VERSION}-source.zip`);
+  const sourceSize = await createZip(sourceOutputDir, sourceZipPath);
+  console.log(`✅ Created ${path.basename(sourceZipPath)}`);
+  console.log(`📊 Source size: ${(sourceSize / 1024).toFixed(2)} KB\n`);
+
+  // === BUILD 2: Obfuscated ===
+  console.log('📦 Obfuscating and minifying JavaScript files...');
+  for (const file of JS_FILES) {
+    const sourcePath = path.join(SOURCE_DIR, file);
+    const outputPath = path.join(OUTPUT_DIR, file);
+
+    if (!fs.existsSync(sourcePath)) {
+      console.log(`⚠️  Skipping ${file} (not found)`);
+      continue;
+    }
+
+    try {
+      let code = fs.readFileSync(sourcePath, 'utf8');
+
+      // Step 1: Use terser FIRST to strip console calls (before obfuscation)
+      // This is necessary because the obfuscator encodes strings, making terser unable to recognize console calls later
+      if (!DEBUG) {
+        const stripped = await minify(code, {
+          compress: {
+            drop_console: true,
+            drop_debugger: true,
+            passes: 2
+          },
+          mangle: false,  // Don't mangle yet - just strip console
+          format: {
+            comments: false
+          }
+        });
+        if (stripped.code) {
+          code = stripped.code;
+        }
+      }
+
+      // Step 2: Obfuscate the console-stripped code
+      const obfuscated = JavaScriptObfuscator.obfuscate(code, OBFUSCATOR_OPTIONS);
+
+      // Step 3: Final minification pass
+      const minified = await minify(obfuscated.getObfuscatedCode(), {
+        compress: {
+          dead_code: true,
+          keep_classnames: false,
+          keep_fnames: false
+        },
+        mangle: {
+          toplevel: false
+        }
+      });
+
+      fs.writeFileSync(outputPath, minified.code || obfuscated.getObfuscatedCode());
+      console.log(`✅ ${file}`);
+    } catch (error) {
+      console.error(`❌ Error processing ${file}:`, error.message);
+    }
+  }
+
+  // Copy other files for obfuscated build
+  console.log('\n📋 Copying other files...');
+  COPY_ITEMS.forEach(item => {
+    const sourcePath = path.join(SOURCE_DIR, item);
+    const outputPath = path.join(OUTPUT_DIR, item);
+
+    if (!fs.existsSync(sourcePath)) {
+      console.log(`⚠️  Skipping ${item} (not found)`);
+      return;
+    }
+
+    try {
+      const stats = fs.statSync(sourcePath);
+
+      if (stats.isDirectory()) {
+        fs.cpSync(sourcePath, outputPath, { recursive: true });
+        console.log(`✅ ${item}/ (directory)`);
+      } else {
+        fs.copyFileSync(sourcePath, outputPath);
+        console.log(`✅ ${item}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error copying ${item}:`, error.message);
+    }
+  });
+
+  // Create obfuscated zip
+  console.log('\n📦 Creating obfuscated distribution zip...');
+  const obfuscatedZipPath = path.join(BUILDS_DIR, `snapshot-ai-v${VERSION}.zip`);
+  const obfuscatedSize = await createZip(OUTPUT_DIR, obfuscatedZipPath);
+  console.log(`✅ Created ${path.basename(obfuscatedZipPath)}`);
+  console.log(`📊 Obfuscated size: ${(obfuscatedSize / 1024).toFixed(2)} KB`);
+
+  // Also copy to root for backwards compatibility
+  fs.copyFileSync(obfuscatedZipPath, path.join(__dirname, 'snapshot-ai.zip'));
 
   // Create CRX file
   console.log('\n📦 Creating CRX file...');
@@ -172,13 +258,21 @@ output.on('close', () => {
     console.log('⚠️  Failed to create CRX file:', error.message);
   }
 
-  console.log('\n✨ Build complete! Your protected extension is ready to distribute.');
-});
+  // Clean up temporary source directory
+  fs.rmSync(sourceOutputDir, { recursive: true });
 
-archive.on('error', (err) => {
-  throw err;
-});
+  console.log('\n' + '='.repeat(50));
+  console.log(`✨ Build complete! Version: ${VERSION}`);
+  console.log('='.repeat(50));
+  console.log(`\nOutput files in builds/:`);
+  console.log(`  📁 snapshot-ai-v${VERSION}.zip (obfuscated)`);
+  console.log(`  📁 snapshot-ai-v${VERSION}-source.zip (source)`);
+  console.log(`\nLatest build also at:`);
+  console.log(`  📁 snapshot-ai.zip`);
+  console.log(`  📁 snapshot-ai.crx`);
+}
 
-archive.pipe(output);
-archive.directory(OUTPUT_DIR, false);
-archive.finalize();
+build().catch(err => {
+  console.error('Build failed:', err);
+  process.exit(1);
+});

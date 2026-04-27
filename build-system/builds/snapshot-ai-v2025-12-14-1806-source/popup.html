@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Snapshots AI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .header {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #d8b4fe;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      margin: -20px -20px 20px -20px;
+      padding: 20px 20px 15px 20px;
+      border-radius: 0;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .beta-badge {
+      background: #fbbf24;
+      color: #78350f;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #f3e8ff;
+    }
+
+    .license-section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .license-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+
+    .license-status.valid {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .license-status.invalid {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+
+    .license-status-icon {
+      font-size: 16px;
+    }
+
+    .license-info {
+      flex: 1;
+    }
+
+    .license-info strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .license-info small {
+      color: inherit;
+      opacity: 0.8;
+    }
+
+    .license-contact {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f9fafb;
+      border-radius: 4px;
+    }
+
+    .license-contact strong {
+      color: #374151;
+    }
+
+    .deactivate-btn {
+      background: none;
+      border: none;
+      color: #dc2626;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .deactivate-btn:hover {
+      background: #fee2e2;
+    }
+
+    .export-section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 12px;
+    }
+
+    .info-box {
+      background: #f5f3ff;
+      border: 1px solid #d8b4fe;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .info-box p {
+      font-size: 12px;
+      color: #6b21a8;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: monospace;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #8B5CF6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #8B5CF6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .progress {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      background: #f3f4f6;
+      border-radius: 6px;
+    }
+
+    .progress-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .progress-text {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    /* Export in progress overlay */
+    .export-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 30px;
+    }
+
+    .export-overlay.active {
+      display: flex;
+    }
+
+    .export-overlay-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .export-overlay-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #6d28d9;
+      margin-bottom: 8px;
+    }
+
+    .export-overlay-subtitle {
+      font-size: 13px;
+      color: #7c3aed;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .export-overlay-progress {
+      width: 100%;
+      max-width: 300px;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+    }
+
+    .export-overlay-status {
+      font-size: 13px;
+      color: #374151;
+      margin-bottom: 12px;
+      min-height: 40px;
+    }
+
+    .export-overlay-bar-container {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .export-overlay-bar {
+      height: 100%;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      width: 0%;
+      transition: width 0.3s;
+      border-radius: 4px;
+    }
+
+    .export-overlay-percent {
+      font-size: 12px;
+      color: #6b7280;
+      text-align: right;
+    }
+
+    .export-overlay-warning {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    .dismiss-overlay-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: rgba(139, 92, 246, 0.1);
+      color: #7c3aed;
+      font-size: 18px;
+      font-weight: 300;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .dismiss-overlay-btn:hover {
+      background: rgba(139, 92, 246, 0.2);
+      color: #6d28d9;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .features {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .features ul {
+      list-style: none;
+    }
+
+    .features li {
+      font-size: 12px;
+      color: #374151;
+      padding: 6px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .features li:before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #8B5CF6;
+      font-weight: bold;
+    }
+
+    .asset-selection {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fafafa;
+    }
+
+    .asset-checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .asset-checkbox-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      background: white;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .asset-checkbox-item:hover {
+      background: #f5f3ff;
+    }
+
+    .asset-checkbox-item input[type="checkbox"] {
+      width: auto;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+
+    .asset-checkbox-item label {
+      margin: 0;
+      cursor: pointer;
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .asset-count {
+      font-size: 11px;
+      color: #6b7280;
+      margin-left: 4px;
+    }
+
+    .selection-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .selection-controls button {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 11px;
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .selection-controls button:hover {
+      background: #e5e7eb;
+    }
+
+    .asset-types-collapsible {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .asset-types-collapsible summary {
+      padding: 10px 12px;
+      background: #f9fafb;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-user-select: none;
+      user-select: none;
+      list-style: none;
+    }
+
+    .asset-types-collapsible summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .asset-types-collapsible summary::before {
+      content: '▶';
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .asset-types-collapsible[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .asset-types-collapsible summary:hover {
+      background: #f3f4f6;
+    }
+
+    .asset-types-collapsible .asset-selection {
+      border: none;
+      border-radius: 0;
+      border-top: 1px solid #d1d5db;
+    }
+
+    .asset-types-collapsible .selection-controls {
+      padding: 8px 10px;
+      margin: 0;
+      border-top: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+
+    .asset-types-badge {
+      background: #8B5CF6;
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✨ Super Snapshots AI <span class="beta-badge">Beta</span></h1>
+      <p class="subtitle">AI-powered GHL snapshot documentation & export</p>
+    </div>
+
+    <!-- License Activation Section -->
+    <div class="license-section" id="licenseSection">
+      <div class="section-title">License Activation</div>
+
+      <!-- License Status (shown when license is active) -->
+      <div id="licenseStatusContainer" style="display: none;">
+        <div class="license-status valid" id="licenseStatus">
+          <span class="license-status-icon">✓</span>
+          <div class="license-info">
+            <strong>License Active</strong>
+            <small id="licenseUsageInfo">Loading usage info...</small>
+          </div>
+          <button class="deactivate-btn" id="deactivateLicenseBtn">Remove</button>
+        </div>
+      </div>
+
+      <!-- License Input (shown when no license) -->
+      <div id="licenseInputContainer">
+        <div class="form-group">
+          <label for="licenseCode">License Code</label>
+          <input type="text" id="licenseCode" placeholder="Enter your license code">
+        </div>
+        <button id="activateLicenseBtn" class="button" style="margin-top: 8px;">
+          <span>🔑</span>
+          <span>Activate License</span>
+        </button>
+        <div id="licenseMessage" class="message" style="margin-top: 8px;"></div>
+      </div>
+
+      <div class="license-contact">
+        <strong>Need a license code?</strong> Contact <strong>Fer Patel</strong> to request access.
+      </div>
+    </div>
+
+    <div class="export-section">
+      <div class="section-title">AI Analysis Settings</div>
+
+      <div class="form-group">
+        <label for="openaiKey">OpenAI API Key (Optional)</label>
+        <div id="openaiKeyInputContainer" style="display: flex; gap: 8px;">
+          <input type="password" id="openaiKey" placeholder="sk-..." style="flex: 1;">
+          <button type="button" id="testOpenaiKey" style="padding: 8px 12px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">Test</button>
+        </div>
+        <div id="openaiKeyStatus" style="display: none; margin-top: 6px; padding: 6px 10px; border-radius: 4px; font-size: 12px;"></div>
+        <p class="hint">Add key to enable AI-powered descriptions for workflows</p>
+      </div>
+
+      <div id="openaiKeySavedContainer" style="display: none; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #16a34a;">✓</span>
+            <span style="font-size: 13px; color: #166534;" id="openaiKeyMasked">API Key configured</span>
+          </div>
+          <button type="button" id="changeOpenaiKey" style="padding: 4px 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Change</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="enableAI" style="width: auto; margin-right: 8px; cursor: pointer;">
+          <span>Enable AI analysis for workflows</span>
+        </label>
+        <p class="hint">Generates smart descriptions and setup notes (requires API key)</p>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="includeFullEnrichment" style="width: auto; margin-right: 8px; cursor: pointer;" checked>
+          <span>Include full enrichment data (JSON)</span>
+        </label>
+        <p class="hint">Adds raw JSON data column to exports (larger file size)</p>
+      </div>
+    </div>
+
+    <div class="export-section">
+      <div class="section-title">Select Snapshot</div>
+
+      <div class="form-group">
+        <label for="snapshotSelect">Available Snapshots</label>
+        <select id="snapshotSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+          <option value="">Loading snapshots...</option>
+        </select>
+        <p class="hint">Select a snapshot from your account</p>
+      </div>
+
+      <div class="form-group">
+        <details class="asset-types-collapsible">
+          <summary>
+            Asset Types to Export
+            <span class="asset-types-badge" id="assetCountBadge">All</span>
+          </summary>
+          <div class="asset-selection">
+            <div class="asset-checkbox-group" id="assetCheckboxGroup">
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_custom_fields" value="custom_fields" checked>
+                <label for="asset_custom_fields">Custom Fields</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_custom_values" value="custom_values" checked>
+                <label for="asset_custom_values">Custom Values</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_tags" value="tags" checked>
+                <label for="asset_tags">Tags</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_pipelines" value="pipelines" checked>
+                <label for="asset_pipelines">Pipelines</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_calendars" value="calendars" checked>
+                <label for="asset_calendars">Calendars</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_campaigns" value="campaigns" checked>
+                <label for="asset_campaigns">Campaigns</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_forms" value="forms" checked>
+                <label for="asset_forms">Forms</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_surveys" value="surveys" checked>
+                <label for="asset_surveys">Surveys</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_workflow" value="workflow" checked>
+                <label for="asset_workflow">Workflows</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_text_templates" value="text_templates" checked>
+                <label for="asset_text_templates">Text Templates</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_email_templates" value="email_templates" checked>
+                <label for="asset_email_templates">Email Templates</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_funnels" value="funnels" checked>
+                <label for="asset_funnels">Funnels</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_links" value="links" checked>
+                <label for="asset_links">Links</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_folders" value="folders" checked>
+                <label for="asset_folders">Folders</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_teams" value="teams" checked>
+                <label for="asset_teams">Teams</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_membership_offers" value="membership_offers" checked>
+                <label for="asset_membership_offers">Membership Offers</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_membership_products" value="membership_products" checked>
+                <label for="asset_membership_products">Membership Products</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_triggers" value="triggers" checked>
+                <label for="asset_triggers">Triggers</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_knowledge_bases" value="knowledge_bases" checked>
+                <label for="asset_knowledge_bases">Knowledge Bases</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_quizzes" value="quizzes" checked>
+                <label for="asset_quizzes">Quizzes</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_dashboards" value="dashboards" checked>
+                <label for="asset_dashboards">Dashboards</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_custom_objects" value="custom_objects" checked>
+                <label for="asset_custom_objects">Custom Objects</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_certificates" value="certificates" checked>
+                <label for="asset_certificates">Certificates</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_review_settings" value="review_settings" checked>
+                <label for="asset_review_settings">Review Settings</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_conversation_ai" value="conversation_ai" checked>
+                <label for="asset_conversation_ai">Conversation AI</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_social_planner" value="social_planner" checked>
+                <label for="asset_social_planner">Social Planner</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_sectionTemplates" value="sectionTemplates" checked>
+                <label for="asset_sectionTemplates">Section Templates</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_voice_ai_agents" value="voice_ai_agents" checked>
+                <label for="asset_voice_ai_agents">Voice AI Agents</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_ai_employees" value="ai_employees" checked>
+                <label for="asset_ai_employees">AI Employees</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_documents" value="documents" checked>
+                <label for="asset_documents">Documents & Contracts</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_snippets" value="snippets" checked>
+                <label for="asset_snippets">Snippets</label>
+              </div>
+            </div>
+          </div>
+          <div class="selection-controls">
+            <button type="button" id="selectAllAssets">Select All</button>
+            <button type="button" id="deselectAllAssets">Deselect All</button>
+          </div>
+        </details>
+        <p class="hint">Exports all asset types by default. Expand to customize.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="exportFormat">Export Format</label>
+        <select id="exportFormat" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+          <option value="xlsx">Excel Workbook (.xlsx) - All in one file</option>
+          <option value="csv">CSV Files (.csv) - Separate files</option>
+        </select>
+        <p class="hint">Excel format recommended for easier viewing</p>
+      </div>
+
+      <button id="exportSelectedButton" class="button">
+        <span>📥</span>
+        <span>Export Selected Snapshot</span>
+      </button>
+
+      <div id="progress" class="progress">
+        <div class="progress-title">Exporting...</div>
+        <div id="progressText" class="progress-text">Preparing export...</div>
+        <div class="progress-bar-container">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+      </div>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <div class="export-section">
+      <div class="section-title">Export Location Assets</div>
+
+      <div class="info-box">
+        <p>Export assets directly from the current location without needing a snapshot. This exports the live state of your location's assets.</p>
+      </div>
+
+      <div class="form-group">
+        <label>Current Location ID</label>
+        <input type="text" id="currentLocationId" placeholder="Auto-detected..." readonly style="background: #f9fafb; cursor: not-allowed;">
+        <p class="hint">Automatically detected from the current GHL page</p>
+      </div>
+
+      <button id="exportLocationButton" class="button" style="background: linear-gradient(135deg, #10B981 0%, #34D399 100%);">
+        <span>🏢</span>
+        <span>Export Location Assets</span>
+      </button>
+
+      <div id="locationProgress" class="progress">
+        <div class="progress-title">Exporting...</div>
+        <div id="locationProgressText" class="progress-text">Preparing export...</div>
+        <div class="progress-bar-container">
+          <div id="locationProgressBar" class="progress-bar"></div>
+        </div>
+      </div>
+
+      <div id="locationMessage" class="message"></div>
+    </div>
+
+    <div class="export-section">
+      <div class="section-title">Manual Export</div>
+
+      <div class="form-group">
+        <label for="snapshotId">Snapshot ID</label>
+        <input type="text" id="snapshotId" placeholder="e.g., uTwVJ3PkF5HRM5oxCpL1">
+        <p class="hint">Found in the snapshot URL</p>
+      </div>
+
+      <div class="form-group">
+        <label for="companyId">Company ID</label>
+        <input type="text" id="companyId" placeholder="e.g., 3WEvz5mHuGnbYw1odUaF">
+        <p class="hint">Your GHL company/location ID</p>
+      </div>
+
+      <button id="exportManualButton" class="button">
+        <span>🚀</span>
+        <span>Export with IDs</span>
+      </button>
+    </div>
+
+    <div class="features">
+      <div class="section-title">What Gets Exported</div>
+      <ul>
+        <li>Custom Fields & Custom Values</li>
+        <li>Tags & Pipelines</li>
+        <li>Workflows & Triggers</li>
+        <li>Forms, Surveys & Funnels</li>
+        <li>Calendars & Campaigns</li>
+        <li>Email & Text Templates</li>
+        <li>And 15+ more asset types</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Export in progress overlay -->
+  <div id="exportOverlay" class="export-overlay">
+    <button type="button" id="dismissOverlayBtn" class="dismiss-overlay-btn" title="Dismiss overlay">×</button>
+    <div class="export-overlay-icon">📊</div>
+    <div class="export-overlay-title">Export in Progress</div>
+    <div class="export-overlay-subtitle" id="exportOverlayType">Processing your data...</div>
+    <div class="export-overlay-progress">
+      <div class="export-overlay-status" id="exportOverlayStatus">Preparing export...</div>
+      <div class="export-overlay-bar-container">
+        <div class="export-overlay-bar" id="exportOverlayBar"></div>
+      </div>
+      <div class="export-overlay-percent" id="exportOverlayPercent">0%</div>
+    </div>
+    <div class="export-overlay-warning">
+      Please keep this tab open until the export completes.<br>
+      You can close this popup - the export will continue.
+    </div>
+  </div>
+
+  <script src="license-manager.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -4,6 +4,8 @@
 
 This build system protects your Chrome extension source code through advanced obfuscation and minification techniques. Use this whenever you want to share your extension publicly while keeping your code and logic protected.
 
+> **Runtime features shipped in the extension** (what actually runs after install) are documented in [README.md → Recent Feature Updates](./README.md#recent-feature-updates). That list covers: tag contact counts derived from Search Contacts, Trigger Links reverse-lookup columns, JSON-first export ordering, and the self-contained HTML dashboard. Rebuild after any source change so the distributed zip includes them.
+
 ---
 
 ## Quick Start

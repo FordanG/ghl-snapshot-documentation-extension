@@ -6,6 +6,9 @@ build-system/snapshot-ai.crx
 # Private key - DO NOT COMMIT
 build-system/extension-key.pem
 
+# Sample output - may contain customer data and access tokens
+sample-output/
+
 # macOS
 .DS_Store
 

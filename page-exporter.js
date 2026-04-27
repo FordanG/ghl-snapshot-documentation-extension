@@ -7,17 +7,12 @@
  * It provides convenience functions that send messages to the content script.
  */
 
-console.log('[Page Exporter] Loading page context wrapper...');
-
 // Expose snapshot export functions to the page context
 window.ghlSnapshotExporter = {
   /**
    * Export snapshot with provided IDs
    */
   async exportSnapshotWithIds(snapshotId, companyId) {
-    console.log('[Page Exporter] Sending export request to content script');
-
-    // Send message to content script via custom event
     const event = new CustomEvent('ghl-snapshot-export', {
       detail: {
         action: 'exportSnapshotWithIds',
@@ -29,7 +24,6 @@ window.ghlSnapshotExporter = {
     document.dispatchEvent(event);
 
     return new Promise((resolve, reject) => {
-      // Listen for response
       const responseHandler = (e) => {
         if (e.detail.action === 'exportComplete') {
           document.removeEventListener('ghl-snapshot-export-response', responseHandler);
@@ -42,7 +36,6 @@ window.ghlSnapshotExporter = {
 
       document.addEventListener('ghl-snapshot-export-response', responseHandler);
 
-      // Timeout after 5 minutes
       setTimeout(() => {
         document.removeEventListener('ghl-snapshot-export-response', responseHandler);
         reject(new Error('Export timeout - took longer than 5 minutes'));
@@ -54,8 +47,6 @@ window.ghlSnapshotExporter = {
    * Export current snapshot (auto-detect from URL)
    */
   async exportCurrentSnapshot() {
-    console.log('[Page Exporter] Exporting current snapshot');
-
     const event = new CustomEvent('ghl-snapshot-export', {
       detail: {
         action: 'exportCurrentSnapshot'
@@ -88,7 +79,6 @@ window.ghlSnapshotExporter = {
    * Get current snapshot info
    */
   async getCurrentSnapshotInfo() {
-    // Try to get from URL
     const url = window.location.href;
     const snapshotMatch = url.match(/\/snapshot\/([^\/\?]+)/);
     const companyMatch = url.match(/[?&]companyId=([^&]+)/);
@@ -98,18 +88,12 @@ window.ghlSnapshotExporter = {
       companyId: companyMatch ? companyMatch[1] : null
     };
 
-    // Try to get company ID from Revex if available
     if (!info.companyId && window.ghlUtilsRevex) {
       try {
         info.companyId = await window.ghlUtilsRevex.getLocationId();
-      } catch (e) {
-        console.warn('[Page Exporter] Could not get company ID from Revex:', e);
-      }
+      } catch (e) {}
     }
 
     return info;
   }
 };
-
-console.log('[Page Exporter] Functions exposed on window.ghlSnapshotExporter');
-console.log('[Page Exporter] Available methods:', Object.keys(window.ghlSnapshotExporter));

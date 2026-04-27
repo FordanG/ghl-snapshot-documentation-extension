@@ -8,6 +8,7 @@ export const KEYS = {
   licenses: '/api/admin?type=licenses',
   usage: '/api/admin?type=usage',
   revenue: '/api/admin?type=revenue',
+  payouts: '/api/admin?type=payouts',
 } as const
 
 // Shared SWR config
@@ -34,6 +35,10 @@ export function useRevenue() {
   return useSWR(KEYS.revenue, fetcher, { revalidateOnFocus: true })
 }
 
+export function usePayouts() {
+  return useSWR(KEYS.payouts, fetcher, { revalidateOnFocus: true })
+}
+
 // Prefetch a key (call on hover/link prefetch)
 export function prefetch(key: string) {
   mutate(key, fetcher(key), { revalidate: false })
@@ -45,4 +50,5 @@ export function revalidateAll() {
   mutate(KEYS.licenses)
   mutate(KEYS.usage)
   mutate(KEYS.revenue)
+  mutate(KEYS.payouts)
 }

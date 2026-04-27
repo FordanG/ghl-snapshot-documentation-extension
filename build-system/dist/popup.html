@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Super Snapshots AI</title>
+  <title>Super Snapshot AI</title>
   <style>
     * {
       margin: 0;
@@ -22,11 +22,11 @@
     }
 
     .header {
-      margin-bottom: 20px;
+      margin-bottom: 0;
       padding-bottom: 15px;
       border-bottom: 2px solid #d8b4fe;
       background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
-      margin: -20px -20px 20px -20px;
+      margin: -20px -20px 0 -20px;
       padding: 20px 20px 15px 20px;
       border-radius: 0;
     }
@@ -42,20 +42,106 @@
       gap: 8px;
     }
 
-    .beta-badge {
-      background: #fbbf24;
-      color: #78350f;
+    .version-badge {
+      background: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
       font-size: 10px;
-      font-weight: 700;
-      padding: 2px 6px;
+      font-weight: 600;
+      padding: 2px 8px;
       border-radius: 4px;
-      text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .subtitle {
       font-size: 13px;
       color: #f3e8ff;
+    }
+
+    /* Tab Navigation */
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      margin: 0 -20px 16px -20px;
+      padding: 0;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 12px;
+      border: none;
+      background: transparent;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .tab-btn:hover {
+      color: #7c3aed;
+      background: #faf5ff;
+    }
+
+    .tab-btn.active {
+      color: #7c3aed;
+      border-bottom-color: #8B5CF6;
+      background: #faf5ff;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Compact license indicator on Export tab */
+    .license-compact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+
+    .license-compact.valid {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .license-compact.invalid {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+
+    .license-compact-text {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .license-compact-btn {
+      padding: 3px 10px;
+      border: none;
+      background: rgba(0,0,0,0.08);
+      color: inherit;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .license-compact-btn:hover {
+      background: rgba(0,0,0,0.15);
     }
 
     .license-section {
@@ -416,33 +502,6 @@
       border: 1px solid #fecaca;
     }
 
-    .features {
-      background: white;
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .features ul {
-      list-style: none;
-    }
-
-    .features li {
-      font-size: 12px;
-      color: #374151;
-      padding: 6px 0;
-      padding-left: 20px;
-      position: relative;
-    }
-
-    .features li:before {
-      content: '✓';
-      position: absolute;
-      left: 0;
-      color: #8B5CF6;
-      font-weight: bold;
-    }
-
     .asset-selection {
       max-height: 300px;
       overflow-y: auto;
@@ -538,7 +597,7 @@
     }
 
     .asset-types-collapsible summary::before {
-      content: '▶';
+      content: '\25B6';
       font-size: 10px;
       transition: transform 0.2s;
     }
@@ -572,98 +631,121 @@
       border-radius: 10px;
       font-weight: 600;
     }
+
+    /* How-To page styles */
+    .howto-section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .howto-section h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 10px;
+    }
+
+    .howto-steps {
+      list-style: none;
+      counter-reset: step;
+    }
+
+    .howto-steps li {
+      font-size: 12px;
+      color: #374151;
+      padding: 8px 0 8px 32px;
+      position: relative;
+      line-height: 1.5;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .howto-steps li:last-child {
+      border-bottom: none;
+    }
+
+    .howto-steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 8px;
+      width: 22px;
+      height: 22px;
+      background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+      color: white;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .howto-list {
+      list-style: none;
+    }
+
+    .howto-list li {
+      font-size: 12px;
+      color: #374151;
+      padding: 5px 0 5px 20px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .howto-list li::before {
+      content: '\2022';
+      position: absolute;
+      left: 6px;
+      color: #8B5CF6;
+      font-weight: bold;
+    }
+
+    .howto-note {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+
+    .howto-note strong {
+      color: #78350f;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>✨ Super Snapshots AI <span class="beta-badge">Beta</span></h1>
-      <p class="subtitle">AI-powered GHL snapshot documentation & export</p>
+      <h1>Super Snapshot AI <span class="version-badge">v1</span></h1>
+      <p class="subtitle">AI-powered GHL documentation & export</p>
     </div>
 
-    <!-- License Activation Section -->
-    <div class="license-section" id="licenseSection">
-      <div class="section-title">License Activation</div>
-
-      <!-- License Status (shown when license is active) -->
-      <div id="licenseStatusContainer" style="display: none;">
-        <div class="license-status valid" id="licenseStatus">
-          <span class="license-status-icon">✓</span>
-          <div class="license-info">
-            <strong>License Active</strong>
-            <small id="licenseUsageInfo">Loading usage info...</small>
-          </div>
-          <button class="deactivate-btn" id="deactivateLicenseBtn">Remove</button>
-        </div>
-      </div>
-
-      <!-- License Input (shown when no license) -->
-      <div id="licenseInputContainer">
-        <div class="form-group">
-          <label for="licenseCode">License Code</label>
-          <input type="text" id="licenseCode" placeholder="Enter your license code">
-        </div>
-        <button id="activateLicenseBtn" class="button" style="margin-top: 8px;">
-          <span>🔑</span>
-          <span>Activate License</span>
-        </button>
-        <div id="licenseMessage" class="message" style="margin-top: 8px;"></div>
-      </div>
-
-      <div class="license-contact">
-        <strong>Need a license code?</strong> Contact <strong>Fer Patel</strong> to request access.
-      </div>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="export">Export</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+      <button class="tab-btn" data-tab="howto">How To</button>
     </div>
 
-    <div class="export-section">
-      <div class="section-title">AI Analysis Settings</div>
+    <!-- ==================== EXPORT TAB ==================== -->
+    <div class="tab-content active" id="tab-export">
+
+      <!-- Compact license status -->
+      <div class="license-compact invalid" id="licenseCompact" style="display: none;">
+        <span class="license-compact-text" id="licenseCompactText">License required to export</span>
+        <button class="license-compact-btn" id="goToSettingsBtn">Activate</button>
+      </div>
 
       <div class="form-group">
-        <label for="openaiKey">OpenAI API Key (Optional)</label>
-        <div id="openaiKeyInputContainer" style="display: flex; gap: 8px;">
-          <input type="password" id="openaiKey" placeholder="sk-..." style="flex: 1;">
-          <button type="button" id="testOpenaiKey" style="padding: 8px 12px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">Test</button>
-        </div>
-        <div id="openaiKeyStatus" style="display: none; margin-top: 6px; padding: 6px 10px; border-radius: 4px; font-size: 12px;"></div>
-        <p class="hint">Add key to enable AI-powered descriptions for workflows</p>
-      </div>
-
-      <div id="openaiKeySavedContainer" style="display: none; margin-bottom: 12px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #16a34a;">✓</span>
-            <span style="font-size: 13px; color: #166534;" id="openaiKeyMasked">API Key configured</span>
-          </div>
-          <button type="button" id="changeOpenaiKey" style="padding: 4px 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Change</button>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom: 8px;">
-        <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
-          <input type="checkbox" id="enableAI" style="width: auto; margin-right: 8px; cursor: pointer;">
-          <span>Enable AI analysis for workflows</span>
-        </label>
-        <p class="hint">Generates smart descriptions and setup notes (requires API key)</p>
-      </div>
-
-      <div class="form-group" style="margin-bottom: 0;">
-        <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
-          <input type="checkbox" id="includeFullEnrichment" style="width: auto; margin-right: 8px; cursor: pointer;" checked>
-          <span>Include full enrichment data (JSON)</span>
-        </label>
-        <p class="hint">Adds raw JSON data column to exports (larger file size)</p>
-      </div>
-    </div>
-
-    <div class="export-section">
-      <div class="section-title">Select Snapshot</div>
-
-      <div class="form-group">
-        <label for="snapshotSelect">Available Snapshots</label>
-        <select id="snapshotSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
-          <option value="">Loading snapshots...</option>
-        </select>
-        <p class="hint">Select a snapshot from your account</p>
+        <label>Current Location ID</label>
+        <input type="text" id="currentLocationId" placeholder="Auto-detected..." readonly style="background: #f9fafb; cursor: not-allowed;">
+        <p class="hint">Automatically detected from the current GHL page</p>
       </div>
 
       <div class="form-group">
@@ -673,22 +755,15 @@
             <span class="asset-types-badge" id="assetCountBadge">All</span>
           </summary>
           <div class="asset-selection">
+            <div class="selection-controls">
+              <button type="button" id="selectAllAssets">Select All</button>
+              <button type="button" id="deselectAllAssets">Deselect All</button>
+            </div>
+            <input type="text" id="assetSearch" placeholder="Search asset types..." style="width: 100%; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
             <div class="asset-checkbox-group" id="assetCheckboxGroup">
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_custom_fields" value="custom_fields" checked>
-                <label for="asset_custom_fields">Custom Fields</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_custom_values" value="custom_values" checked>
-                <label for="asset_custom_values">Custom Values</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_tags" value="tags" checked>
-                <label for="asset_tags">Tags</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_pipelines" value="pipelines" checked>
-                <label for="asset_pipelines">Pipelines</label>
+                <input type="checkbox" id="asset_ai_employees" value="ai_employees" checked>
+                <label for="asset_ai_employees">AI Employees</label>
               </div>
               <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_calendars" value="calendars" checked>
@@ -698,140 +773,144 @@
                 <input type="checkbox" id="asset_campaigns" value="campaigns" checked>
                 <label for="asset_campaigns">Campaigns</label>
               </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_certificates" value="certificates" checked>
+                <label for="asset_certificates">Certificates</label>
+              </div> --><!-- No endpoint yet -->
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_forms" value="forms" checked>
-                <label for="asset_forms">Forms</label>
+                <input type="checkbox" id="asset_conversation_ai" value="conversation_ai" checked>
+                <label for="asset_conversation_ai">Conversation AI</label>
               </div>
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_surveys" value="surveys" checked>
-                <label for="asset_surveys">Surveys</label>
+                <input type="checkbox" id="asset_custom_fields" value="custom_fields" checked>
+                <label for="asset_custom_fields">Custom Fields</label>
               </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_custom_objects" value="custom_objects" checked>
+                <label for="asset_custom_objects">Custom Objects</label>
+              </div> --><!-- No endpoint yet -->
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_workflow" value="workflow" checked>
-                <label for="asset_workflow">Workflows</label>
+                <input type="checkbox" id="asset_custom_values" value="custom_values" checked>
+                <label for="asset_custom_values">Custom Values</label>
               </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_dashboards" value="dashboards" checked>
+                <label for="asset_dashboards">Dashboards</label>
+              </div> --><!-- No endpoint yet -->
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_text_templates" value="text_templates" checked>
-                <label for="asset_text_templates">Text Templates</label>
+                <input type="checkbox" id="asset_documents" value="documents" checked>
+                <label for="asset_documents">Documents & Contracts</label>
               </div>
               <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_email_templates" value="email_templates" checked>
                 <label for="asset_email_templates">Email Templates</label>
               </div>
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_funnels" value="funnels" checked>
-                <label for="asset_funnels">Funnels</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_links" value="links" checked>
-                <label for="asset_links">Links</label>
-              </div>
-              <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_folders" value="folders" checked>
                 <label for="asset_folders">Folders</label>
               </div>
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_teams" value="teams" checked>
-                <label for="asset_teams">Teams</label>
+                <input type="checkbox" id="asset_forms" value="forms" checked>
+                <label for="asset_forms">Forms</label>
               </div>
               <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_membership_offers" value="membership_offers" checked>
-                <label for="asset_membership_offers">Membership Offers</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_membership_products" value="membership_products" checked>
-                <label for="asset_membership_products">Membership Products</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_triggers" value="triggers" checked>
-                <label for="asset_triggers">Triggers</label>
+                <input type="checkbox" id="asset_funnels" value="funnels" checked>
+                <label for="asset_funnels">Funnels</label>
               </div>
               <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_knowledge_bases" value="knowledge_bases" checked>
                 <label for="asset_knowledge_bases">Knowledge Bases</label>
               </div>
               <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_media" value="media" checked>
+                <label for="asset_media">Media</label>
+              </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_membership_offers" value="membership_offers" checked>
+                <label for="asset_membership_offers">Membership Offers</label>
+              </div> --><!-- No endpoint yet -->
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_membership_products" value="membership_products" checked>
+                <label for="asset_membership_products">Membership Products</label>
+              </div> --><!-- No endpoint yet -->
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_objects" value="objects" checked>
+                <label for="asset_objects">Objects</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_pipelines" value="pipelines" checked>
+                <label for="asset_pipelines">Pipelines</label>
+              </div>
+              <!-- <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_quizzes" value="quizzes" checked>
                 <label for="asset_quizzes">Quizzes</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_dashboards" value="dashboards" checked>
-                <label for="asset_dashboards">Dashboards</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_custom_objects" value="custom_objects" checked>
-                <label for="asset_custom_objects">Custom Objects</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_certificates" value="certificates" checked>
-                <label for="asset_certificates">Certificates</label>
-              </div>
-              <div class="asset-checkbox-item">
+              </div> --><!-- No endpoint yet -->
+              <!-- <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_review_settings" value="review_settings" checked>
                 <label for="asset_review_settings">Review Settings</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_conversation_ai" value="conversation_ai" checked>
-                <label for="asset_conversation_ai">Conversation AI</label>
-              </div>
-              <div class="asset-checkbox-item">
-                <input type="checkbox" id="asset_social_planner" value="social_planner" checked>
-                <label for="asset_social_planner">Social Planner</label>
-              </div>
-              <div class="asset-checkbox-item">
+              </div> --><!-- No endpoint yet -->
+              <!-- <div class="asset-checkbox-item">
                 <input type="checkbox" id="asset_sectionTemplates" value="sectionTemplates" checked>
                 <label for="asset_sectionTemplates">Section Templates</label>
+              </div> --><!-- No endpoint yet -->
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_snippets" value="snippets" checked>
+                <label for="asset_snippets">Snippets</label>
+              </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_social_planner" value="social_planner" checked>
+                <label for="asset_social_planner">Social Planner</label>
+              </div> --><!-- No endpoint yet -->
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_surveys" value="surveys" checked>
+                <label for="asset_surveys">Surveys</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_tags" value="tags" checked>
+                <label for="asset_tags">Tags</label>
+              </div>
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_teams" value="teams" checked>
+                <label for="asset_teams">Teams</label>
+              </div> --><!-- No endpoint yet -->
+              <!-- <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_text_templates" value="text_templates" checked>
+                <label for="asset_text_templates">Text Templates</label>
+              </div> --><!-- No endpoint yet -->
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_links" value="links" checked>
+                <label for="asset_links">Trigger Links</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_triggers" value="triggers" checked>
+                <label for="asset_triggers">Triggers</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_voice_ai_agents" value="voice_ai_agents" checked>
+                <label for="asset_voice_ai_agents">Voice AI Agents</label>
+              </div>
+              <div class="asset-checkbox-item">
+                <input type="checkbox" id="asset_workflow" value="workflow" checked>
+                <label for="asset_workflow">Workflows</label>
               </div>
             </div>
-          </div>
-          <div class="selection-controls">
-            <button type="button" id="selectAllAssets">Select All</button>
-            <button type="button" id="deselectAllAssets">Deselect All</button>
           </div>
         </details>
         <p class="hint">Exports all asset types by default. Expand to customize.</p>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom: 16px;">
         <label for="exportFormat">Export Format</label>
         <select id="exportFormat" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
-          <option value="xlsx">Excel Workbook (.xlsx) - All in one file</option>
-          <option value="csv">CSV Files (.csv) - Separate files</option>
+          <option value="xlsx+html" selected>Excel + JSON + HTML reports (.xlsx + .json + .html)</option>
+          <option value="xlsx">Excel + JSON (.xlsx + .json)</option>
+          <option value="csv+html">CSV + JSON + HTML reports (.csv + .json + .html)</option>
+          <option value="csv">CSV + JSON (.csv + .json)</option>
         </select>
-        <p class="hint">Excel format recommended for easier viewing</p>
+        <p class="hint">HTML reports add an interactive Dashboard preview and Linkage map for browsing assets and dependencies in a browser.</p>
       </div>
 
-      <button id="exportSelectedButton" class="button">
-        <span>📥</span>
-        <span>Export Selected Snapshot</span>
-      </button>
-
-      <div id="progress" class="progress">
-        <div class="progress-title">Exporting...</div>
-        <div id="progressText" class="progress-text">Preparing export...</div>
-        <div class="progress-bar-container">
-          <div id="progressBar" class="progress-bar"></div>
-        </div>
-      </div>
-
-      <div id="message" class="message"></div>
-    </div>
-
-    <div class="export-section">
-      <div class="section-title">Export Location Assets</div>
-
-      <div class="info-box">
-        <p>Export assets directly from the current location without needing a snapshot. This exports the live state of your location's assets.</p>
-      </div>
-
-      <div class="form-group">
-        <label>Current Location ID</label>
-        <input type="text" id="currentLocationId" placeholder="Auto-detected..." readonly style="background: #f9fafb; cursor: not-allowed;">
-        <p class="hint">Automatically detected from the current GHL page</p>
-      </div>
-
-      <button id="exportLocationButton" class="button" style="background: linear-gradient(135deg, #10B981 0%, #34D399 100%);">
-        <span>🏢</span>
+      <button id="exportLocationButton" class="button">
         <span>Export Location Assets</span>
       </button>
 
@@ -846,45 +925,147 @@
       <div id="locationMessage" class="message"></div>
     </div>
 
-    <div class="export-section">
-      <div class="section-title">Manual Export</div>
+    <!-- ==================== SETTINGS TAB ==================== -->
+    <div class="tab-content" id="tab-settings">
 
-      <div class="form-group">
-        <label for="snapshotId">Snapshot ID</label>
-        <input type="text" id="snapshotId" placeholder="e.g., uTwVJ3PkF5HRM5oxCpL1">
-        <p class="hint">Found in the snapshot URL</p>
+      <!-- License Activation Section -->
+      <div class="license-section" id="licenseSection">
+        <div class="section-title">License</div>
+
+        <div id="licenseStatusContainer" style="display: none;">
+          <div class="license-status valid" id="licenseStatus">
+            <span class="license-status-icon">&#10003;</span>
+            <div class="license-info">
+              <strong>License Active</strong>
+              <small id="licenseUsageInfo">Loading usage info...</small>
+            </div>
+            <button class="deactivate-btn" id="deactivateLicenseBtn">Remove</button>
+          </div>
+        </div>
+
+        <div id="licenseInputContainer">
+          <div class="form-group">
+            <label for="licenseCode">License Code</label>
+            <input type="text" id="licenseCode" placeholder="Enter your license code">
+          </div>
+          <button id="activateLicenseBtn" class="button" style="margin-top: 8px;">
+            <span>Activate License</span>
+          </button>
+          <div id="licenseMessage" class="message" style="margin-top: 8px;"></div>
+        </div>
+
+        <div class="license-contact">
+          <strong>Need a license code?</strong> Visit <a href="https://supersnapshotai.com" target="_blank" style="color:#8B5CF6;text-decoration:none;font-weight:600;">supersnapshotai.com</a>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="companyId">Company ID</label>
-        <input type="text" id="companyId" placeholder="e.g., 3WEvz5mHuGnbYw1odUaF">
-        <p class="hint">Your GHL company/location ID</p>
+      <!-- AI Settings Section -->
+      <div class="export-section">
+        <div class="section-title">AI Analysis</div>
+
+        <div class="form-group">
+          <label for="openaiKey">OpenAI API Key</label>
+          <div id="openaiKeyInputContainer" style="display: flex; gap: 8px;">
+            <input type="password" id="openaiKey" placeholder="sk-..." style="flex: 1;">
+            <button type="button" id="testOpenaiKey" style="padding: 8px 12px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">Test</button>
+          </div>
+          <div id="openaiKeyStatus" style="display: none; margin-top: 6px; padding: 6px 10px; border-radius: 4px; font-size: 12px;"></div>
+          <p class="hint">Required for AI-powered workflow descriptions</p>
+        </div>
+
+        <div id="openaiKeySavedContainer" style="display: none; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: #16a34a;">&#10003;</span>
+              <span style="font-size: 13px; color: #166534;" id="openaiKeyMasked">API Key configured</span>
+            </div>
+            <button type="button" id="changeOpenaiKey" style="padding: 4px 10px; background: #e5e7eb; color: #374151; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Change</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="enableAI" style="width: auto; margin-right: 8px; cursor: pointer;">
+            <span>Enable AI analysis for workflows</span>
+          </label>
+          <p class="hint">Generates smart descriptions and setup notes using OpenAI</p>
+        </div>
       </div>
 
-      <button id="exportManualButton" class="button">
-        <span>🚀</span>
-        <span>Export with IDs</span>
-      </button>
+      <!-- Export Options Section -->
+      <div class="export-section">
+        <div class="section-title">Export Options</div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="includeFullEnrichment" style="width: auto; margin-right: 8px; cursor: pointer;" checked>
+            <span>Include full enrichment data column</span>
+          </label>
+          <p class="hint">Adds a JSON data column to Excel sheets (larger file size)</p>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="aiFriendlyMode" style="width: auto; margin-right: 8px; cursor: pointer;">
+            <span>AI-friendly export (plain)</span>
+          </label>
+          <p class="hint">Removes table styling and the 3-row sheet header so AI tools and scripts can parse the data without confusion. Column header is row 1.</p>
+        </div>
+      </div>
     </div>
 
-    <div class="features">
-      <div class="section-title">What Gets Exported</div>
-      <ul>
-        <li>Custom Fields & Custom Values</li>
-        <li>Tags & Pipelines</li>
-        <li>Workflows & Triggers</li>
-        <li>Forms, Surveys & Funnels</li>
-        <li>Calendars & Campaigns</li>
-        <li>Email & Text Templates</li>
-        <li>And 15+ more asset types</li>
-      </ul>
+    <!-- ==================== HOW TO TAB ==================== -->
+    <div class="tab-content" id="tab-howto">
+
+      <div class="howto-section">
+        <h3>Getting Started</h3>
+        <ol class="howto-steps">
+          <li>Go to the <strong>Settings</strong> tab and enter your license code to activate the extension.</li>
+          <li>Navigate to any <strong>GoHighLevel sub-account</strong> page in your browser. The extension works on all GHL domains including white-labeled ones.</li>
+          <li>Open the extension popup. Your <strong>Location ID</strong> will be auto-detected from the current page.</li>
+          <li>Choose which asset types to export (all selected by default), pick your format, and click <strong>Export</strong>.</li>
+          <li>Two files will download: an <strong>Excel/CSV</strong> file with organized sheets, and a <strong>JSON</strong> file with full untruncated data.</li>
+        </ol>
+      </div>
+
+      <div class="howto-section">
+        <h3>AI Workflow Analysis (Optional)</h3>
+        <ol class="howto-steps">
+          <li>In <strong>Settings</strong>, enter your OpenAI API key and click <strong>Test</strong> to verify it works.</li>
+          <li>Check <strong>"Enable AI analysis for workflows"</strong> to turn it on.</li>
+          <li>When you export, each workflow will be sent to GPT for analysis. Two extra columns are added: <strong>AI Description</strong> and <strong>AI Setup Notes</strong>.</li>
+        </ol>
+        <div class="howto-note" style="margin-top: 12px;">
+          <strong>Note:</strong> AI analysis adds processing time (~2s per workflow) and uses your OpenAI API credits. It can be toggled off at any time.
+        </div>
+      </div>
+
+      <div class="howto-section">
+        <h3>What Gets Exported</h3>
+        <ul class="howto-list">
+          <li><strong>Excel file</strong> - One sheet per asset type, plus a Summary and Master List sheet. Some very long values may be truncated to fit Excel's 32,767 character cell limit.</li>
+          <li><strong>JSON file</strong> - Complete, untruncated data for every asset. Use this as the source of truth when Excel cells are cut off.</li>
+          <li><strong>Enriched assets</strong> - Workflows, funnels, forms, calendars, pipelines, email templates, and more are enriched with full configuration details beyond the basic listing.</li>
+          <li><strong>30+ asset types</strong> - Custom fields, tags, pipelines, workflows, funnels, forms, calendars, campaigns, templates, knowledge bases, AI employees, voice AI agents, documents, and more.</li>
+        </ul>
+      </div>
+
+      <div class="howto-section">
+        <h3>Tips</h3>
+        <ul class="howto-list">
+          <li>Keep the GHL tab open during export. You can close the popup - the export runs in the background.</li>
+          <li>For large accounts with many workflows, expect the export to take a few minutes.</li>
+          <li>If the export stalls, use the <strong>X</strong> button on the overlay to dismiss it, then try again.</li>
+          <li>The JSON file is ideal for feeding into AI tools or other automation platforms.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
   <!-- Export in progress overlay -->
   <div id="exportOverlay" class="export-overlay">
-    <button type="button" id="dismissOverlayBtn" class="dismiss-overlay-btn" title="Dismiss overlay">×</button>
-    <div class="export-overlay-icon">📊</div>
+    <button type="button" id="dismissOverlayBtn" class="dismiss-overlay-btn" title="Dismiss overlay">&times;</button>
+    <div class="export-overlay-icon">&#128202;</div>
     <div class="export-overlay-title">Export in Progress</div>
     <div class="export-overlay-subtitle" id="exportOverlayType">Processing your data...</div>
     <div class="export-overlay-progress">

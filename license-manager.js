@@ -1,11 +1,10 @@
 /**
  * License Manager for Super Snapshots AI
- * Handles license validation and usage tracking via Supabase
+ * Handles license validation and usage tracking via Supabase Edge Function
  */
 
 const LICENSE_CONFIG = {
-  SUPABASE_URL: 'https://aggtrjiseqoeottcrbuw.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZ3RyamlzZXFvZW90dGNyYnV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MzYxOTIsImV4cCI6MjA4MDUxMjE5Mn0.Q26hVW2CbyihiR6lia7YMVQ_wN74I9F_gVK-njydYoI'
+  EDGE_FUNCTION_URL: 'https://aggtrjiseqoeottcrbuw.supabase.co/functions/v1/verify-license'
 };
 
 /**
@@ -13,36 +12,25 @@ const LICENSE_CONFIG = {
  */
 class LicenseManager {
   constructor() {
-    this.supabaseUrl = LICENSE_CONFIG.SUPABASE_URL;
-    this.supabaseKey = LICENSE_CONFIG.SUPABASE_ANON_KEY;
+    this.edgeFunctionUrl = LICENSE_CONFIG.EDGE_FUNCTION_URL;
     this.cachedLicense = null;
   }
 
   /**
-   * Make a request to Supabase REST API
+   * Call the edge function for license operations
    */
-  async supabaseRequest(endpoint, options = {}) {
-    const url = `${this.supabaseUrl}/rest/v1/${endpoint}`;
-    const headers = {
-      'apikey': this.supabaseKey,
-      'Authorization': `Bearer ${this.supabaseKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': options.prefer || 'return=representation'
-    };
-
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined
+  async callEdgeFunction(payload) {
+    const response = await fetch(this.edgeFunctionUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Supabase error: ${error}`);
+    const data = await response.json();
+    if (!response.ok && !data.error) {
+      throw new Error(`Edge function error: ${response.statusText}`);
     }
-
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    return data;
   }
 
   /**
@@ -57,57 +45,14 @@ class LicenseManager {
       }
 
       const code = licenseCode.trim().toUpperCase();
+      const result = await this.callEdgeFunction({ action: 'validate', licenseCode: code });
 
-      // Fetch license from Supabase
-      const licenses = await this.supabaseRequest(
-        `licenses?license_code=eq.${encodeURIComponent(code)}&select=*`
-      );
-
-      if (!licenses || licenses.length === 0) {
-        return { valid: false, error: 'Invalid license code' };
+      if (result.valid) {
+        this.cachedLicense = { license_code: code };
       }
 
-      const license = licenses[0];
-
-      // Check if license is active
-      if (!license.is_active) {
-        return { valid: false, error: 'License has been deactivated' };
-      }
-
-      // Check expiration
-      if (license.expires_at && new Date(license.expires_at) < new Date()) {
-        return { valid: false, error: 'License has expired' };
-      }
-
-      // Get usage count
-      const usageData = await this.supabaseRequest(
-        `license_usage?license_id=eq.${license.id}&select=id`,
-        { prefer: 'count=exact' }
-      );
-
-      const usageCount = Array.isArray(usageData) ? usageData.length : 0;
-
-      // Check max uses (if set)
-      if (license.max_uses !== null && usageCount >= license.max_uses) {
-        return {
-          valid: false,
-          error: `License usage limit reached (${usageCount}/${license.max_uses})`,
-          usageCount
-        };
-      }
-
-      // Cache the valid license
-      this.cachedLicense = license;
-
-      return {
-        valid: true,
-        license,
-        usageCount,
-        remainingUses: license.max_uses ? license.max_uses - usageCount : 'unlimited'
-      };
-
+      return result;
     } catch (error) {
-      console.error('[LicenseManager] Validation error:', error);
       return { valid: false, error: 'Failed to validate license: ' + error.message };
     }
   }
@@ -121,30 +66,22 @@ class LicenseManager {
   async recordUsage(licenseCode, metadata = {}) {
     try {
       const code = licenseCode.trim().toUpperCase();
-
-      // First validate the license
-      const validation = await this.validateLicense(code);
-      if (!validation.valid) {
-        return { success: false, error: validation.error };
-      }
-
-      // Record usage
-      const usageRecord = {
-        license_id: validation.license.id,
-        snapshot_id: metadata.snapshotId || null,
-        company_id: metadata.companyId || null,
-        user_agent: navigator.userAgent || null
-      };
-
-      await this.supabaseRequest('license_usage', {
-        method: 'POST',
-        body: usageRecord
+      const result = await this.callEdgeFunction({
+        action: 'record_usage',
+        licenseCode: code,
+        metadata: {
+          snapshotId: metadata.snapshotId || null,
+          companyId: metadata.companyId || null,
+          userAgent: navigator.userAgent || null
+        }
       });
 
-      return { success: true, usageCount: (validation.usageCount || 0) + 1 };
+      if (!result.valid && !result.success) {
+        return { success: false, error: result.error };
+      }
 
+      return { success: true, usageCount: result.usageCount };
     } catch (error) {
-      console.error('[LicenseManager] Usage recording error:', error);
       return { success: false, error: 'Failed to record usage: ' + error.message };
     }
   }

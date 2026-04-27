@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Build tools for GHL Utils Extension",
   "scripts": {
-    "build": "node build.js"
+    "build": "node --stack-size=16000 build.js"
   },
   "devDependencies": {
     "javascript-obfuscator": "^4.1.0",

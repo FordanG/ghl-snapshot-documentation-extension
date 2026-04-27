@@ -16,6 +16,7 @@ export default function GeneratePage() {
   const [expires, setExpires]   = useState('')
   const [notes, setNotes]       = useState('')
   const [isFree, setIsFree]     = useState(false)
+  const [price, setPrice]       = useState('149')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [success, setSuccess]   = useState<{
@@ -35,6 +36,7 @@ export default function GeneratePage() {
     if (maxUses) payload.max_uses = parseInt(maxUses)
     if (expires) payload.expires_at = expires
     if (notes)   payload.notes    = notes
+    payload.price = isFree ? 0 : parseFloat(price) || 149
 
     try {
       const res  = await fetch('/api/generate', {
@@ -47,7 +49,7 @@ export default function GeneratePage() {
         setError(data.error || 'Something went wrong.')
       } else {
         setSuccess({ license: data.license, emailSent: sendEmail, warning: data.warning })
-        setEmail(''); setName(''); setMaxUses(''); setExpires(''); setNotes(''); setIsFree(false)
+        setEmail(''); setName(''); setMaxUses(''); setExpires(''); setNotes(''); setIsFree(false); setPrice('149')
         // Revalidate all dashboard caches so other pages reflect the new license
         revalidateAll()
       }
@@ -114,6 +116,20 @@ export default function GeneratePage() {
           <div>
             <label className={labelCls}>Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Internal notes…" rows={2} className={`${inputCls} resize-none`} />
+          </div>
+
+          {/* Price */}
+          <div>
+            <label className={labelCls}>Price ($)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={isFree ? '0' : price}
+              onChange={e => setPrice(e.target.value)}
+              disabled={isFree}
+              placeholder="149"
+              className={`${inputCls} ${isFree ? 'opacity-50 cursor-not-allowed' : ''}`}
+            />
+            <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">Default: $149. Set custom pricing per license.</p>
           </div>
 
           {/* Free license toggle */}
